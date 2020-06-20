@@ -16,6 +16,7 @@ type Address = int
 type Packet struct {
 	src         Address
 	dst         Address
+	hopsLeft    int
 	data        []byte
 	arrivalTime time.Time
 }
@@ -48,12 +49,13 @@ type DelayEmulator struct {
 	dst         Address
 }
 
-// TODO(aditi): maybe put this in goroutine?
 func (e DelayEmulator) applyEmulation() {
 	p := <-e.inputQueue
 	releaseTime := p.arrivalTime.Add(e.delay)
 	delay := releaseTime.Sub(time.Now())
-	time.Sleep(delay)
+	if delay > 0 {
+		time.Sleep(delay)
+	}
 	e.outputQueue <- p
 }
 
@@ -89,16 +91,19 @@ func (s *BroadcastSimulator) writeToDestination(p Packet) {
 	decodedPacket := gopacket.NewPacket(p.data, layers.IPProtocolIPv4, gopacket.Default)
 	if ipLayer := decodedPacket.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
-		fmt.Printf("From src ip %s to dst ip%s\n", ip.SrcIP.String(), ip.DstIP.String())
+		fmt.Printf("From src ip %s to dst ip %s\n", ip.SrcIP.String(), ip.DstIP.String())
 		ip.SrcIP = net.IP{10, 0, 0, 1}
 		buf := gopacket.NewSerializeBuffer()
 		err := ip.SerializeTo(buf, gopacket.SerializeOptions{})
 		if err != nil {
 			panic(err)
 		}
-		s.tun.Write(buf.Bytes())
+		// TODO(aditi): Find a way to do this that uses the api
+		data := append(buf.Bytes(), ip.LayerPayload()...)
+		s.tun.Write(data)
+	} else {
+		panic("unable to decode packet")
 	}
-	panic("unable to decode packet")
 }
 
 func (s *BroadcastSimulator) processOutgoingPackets() {
@@ -107,16 +112,18 @@ func (s *BroadcastSimulator) processOutgoingPackets() {
 			go func(e LinkEmulator) {
 				for {
 					packet := e.readOutgoingPacket()
-					if packet.src == s.realDest {
+					// If the emulation is complete for the "real dest", we can send it out on the real device
+					if e.dstAddr() == s.realDest {
 						s.writeToDestination(packet)
-					}
-					for _, dstEmulator := range emulatorList {
-						if dstEmulator != e {
-							packet.src = src
-							packet.dst = dstEmulator.dstAddr()
-							// TODO(aditi) Not sure if time should be set here
-							packet.arrivalTime = time.Now()
-							dstEmulator.writeIncomingPacket(packet)
+					} else if packet.hopsLeft > 0 {
+						for _, dstEmulator := range emulatorList {
+							if dstEmulator != e {
+								packet.src = src
+								packet.dst = dstEmulator.dstAddr()
+								packet.hopsLeft -= 1
+								packet.arrivalTime = time.Now()
+								dstEmulator.writeIncomingPacket(packet)
+							}
 						}
 					}
 				}
@@ -127,9 +134,10 @@ func (s *BroadcastSimulator) processOutgoingPackets() {
 
 func main() {
 	numAddresses := 4
-	realSrc := 0
-	realDest := 3
+	realSrc := 0  // Lowest address
+	realDest := 3 // Highest address
 	maxQueueLength := 1000
+	maxHops := 4
 	dev, err := water.NewTUN("proxy")
 
 	if err != nil {
@@ -144,11 +152,11 @@ func main() {
 	sim := BroadcastSimulator{make(map[Address]([]LinkEmulator)), realDest, dev}
 
 	// initialize simulator
-	for i := 1; i < numAddresses; i++ {
-		sim.queues[i] = make([]LinkEmulator, numAddresses)
-		for j := 1; j < numAddresses; j++ {
+	for i := 0; i < realDest; i++ {
+		sim.queues[i] = make([]LinkEmulator, 0)
+		for j := 0; j < numAddresses; j++ {
 			if i != j {
-				emulator := DelayEmulator{make(chan Packet, maxQueueLength), make(chan Packet, maxQueueLength), time.Millisecond * 1, i, j}
+				emulator := DelayEmulator{make(chan Packet, maxQueueLength), make(chan Packet, maxQueueLength), time.Millisecond * 10, i, j}
 				sim.queues[i] = append(sim.queues[i], emulator)
 			}
 		}
@@ -168,7 +176,7 @@ func main() {
 		fmt.Printf("packet in %d\n", n)
 
 		for _, emulator := range sim.queues[0] {
-			emulator.writeIncomingPacket(Packet{realSrc, emulator.srcAddr(), packet[:n], time.Now()})
+			emulator.writeIncomingPacket(Packet{realSrc, emulator.srcAddr(), maxHops, packet[:n], time.Now()})
 		}
 	}
 
