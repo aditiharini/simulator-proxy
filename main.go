@@ -88,13 +88,14 @@ func (s *BroadcastSimulator) processIncomingPackets() {
 }
 
 func (s *BroadcastSimulator) writeToDestination(p Packet) {
+	// s.tun.Write(p.data)
 	decodedPacket := gopacket.NewPacket(p.data, layers.IPProtocolIPv4, gopacket.Default)
 	if ipLayer := decodedPacket.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
 		fmt.Printf("From src ip %s to dst ip %s\n", ip.SrcIP.String(), ip.DstIP.String())
-		ip.SrcIP = net.IP{10, 0, 0, 1}
+		ip.SrcIP = net.IP{10, 0, 0, 2}
 		buf := gopacket.NewSerializeBuffer()
-		err := ip.SerializeTo(buf, gopacket.SerializeOptions{})
+		err := ip.SerializeTo(buf, gopacket.SerializeOptions{ComputeChecksums: true})
 		if err != nil {
 			panic(err)
 		}
@@ -144,9 +145,11 @@ func main() {
 		panic(err)
 	}
 
+	exec.Command("ip", "rule", "delete", "table", "1").Run()
 	exec.Command("ip", "link", "set", "dev", dev.Name(), "up").Run()
-	exec.Command("ip", "route", "add", "10.0.0.2", "dev", dev.Name()).Run()
-	exec.Command("ip", "rule", "add", "from", "100.64.0.1", "table", "1").Run()
+	exec.Command("ip", "addr", "add", "10.0.0.1", "dev", dev.Name()).Run()
+	exec.Command("ip", "rule", "add", "from", "100.64.0.2", "table", "1").Run()
+	exec.Command("ifconfig", dev.Name(), "10.0.0.1", "dstaddr", "10.0.0.2").Run()
 	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", "1").Run()
 
 	sim := BroadcastSimulator{make(map[Address]([]LinkEmulator)), realDest, dev}
