@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"time"
 
@@ -31,6 +33,7 @@ type BroadcastSimulator struct {
 	queues   map[Address]([]LinkEmulator) // Map src to list of links
 	realDest int
 	tun      *water.Interface
+	tunDest  net.IP
 }
 
 type LinkEmulator interface {
@@ -88,12 +91,11 @@ func (s *BroadcastSimulator) processIncomingPackets() {
 }
 
 func (s *BroadcastSimulator) writeToDestination(p Packet) {
-	// s.tun.Write(p.data)
 	decodedPacket := gopacket.NewPacket(p.data, layers.IPProtocolIPv4, gopacket.Default)
 	if ipLayer := decodedPacket.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
 		fmt.Printf("From src ip %s to dst ip %s\n", ip.SrcIP.String(), ip.DstIP.String())
-		ip.SrcIP = net.IP{10, 0, 0, 2}
+		ip.SrcIP = s.tunDest
 		buf := gopacket.NewSerializeBuffer()
 		err := ip.SerializeTo(buf, gopacket.SerializeOptions{ComputeChecksums: true})
 		if err != nil {
@@ -133,33 +135,56 @@ func (s *BroadcastSimulator) processOutgoingPackets() {
 	}
 }
 
+func readConfig(filename string) Config {
+	var config Config
+	confFile, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer confFile.Close()
+	err = json.NewDecoder(confFile).Decode(&config)
+	if err != nil {
+		panic(err)
+	}
+	return config
+}
+
+type Config struct {
+	NumAddresses        int    `json:"numAddresses"`
+	RealSrcAddress      string `json:"realSrcAddress"`
+	SimulatedSrcAddress int    `json:"simulatedSrcAddress"`
+	SimulatedDstAddress int    `json:"simulatedDstAddress"`
+	MaxQueueLength      int    `json:"maxQueueLength"`
+	MaxHops             int    `json:"maxHops"`
+	DevName             string `json:"devName"`
+	DevSrcAddr          string `json:"devSrcAddr"`
+	DevDstAddr          string `json:"devDstAddr"`
+	RoutingTableNum     string `json:"routingTableNum"`
+}
+
 func main() {
-	numAddresses := 4
-	realSrc := 0  // Lowest address
-	realDest := 3 // Highest address
-	maxQueueLength := 1000
-	maxHops := 4
-	dev, err := water.NewTUN("proxy")
+	config := readConfig("./config.json")
+	dev, err := water.NewTUN(config.DevName)
 
 	if err != nil {
 		panic(err)
 	}
 
-	exec.Command("ip", "rule", "delete", "table", "1").Run()
+	exec.Command("ip", "rule", "delete", "table", config.RoutingTableNum).Run()
 	exec.Command("ip", "link", "set", "dev", dev.Name(), "up").Run()
-	exec.Command("ip", "addr", "add", "10.0.0.1", "dev", dev.Name()).Run()
-	exec.Command("ip", "rule", "add", "from", "100.64.0.2", "table", "1").Run()
-	exec.Command("ifconfig", dev.Name(), "10.0.0.1", "dstaddr", "10.0.0.2").Run()
-	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", "1").Run()
+	exec.Command("ip", "addr", "add", config.DevSrcAddr, "dev", dev.Name()).Run()
+	exec.Command("ip", "rule", "add", "from", config.RealSrcAddress, "table", "1").Run()
+	exec.Command("ifconfig", dev.Name(), config.DevSrcAddr, "dstaddr", config.DevDstAddr).Run()
+	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.RoutingTableNum).Run()
 
-	sim := BroadcastSimulator{make(map[Address]([]LinkEmulator)), realDest, dev}
+	sim := BroadcastSimulator{make(map[Address]([]LinkEmulator)), config.SimulatedDstAddress, dev, net.ParseIP(config.DevDstAddr)}
 
 	// initialize simulator
-	for i := 0; i < realDest; i++ {
+	for i := 0; i < config.SimulatedDstAddress; i++ {
 		sim.queues[i] = make([]LinkEmulator, 0)
-		for j := 0; j < numAddresses; j++ {
+		for j := 0; j < config.NumAddresses; j++ {
 			if i != j {
-				emulator := DelayEmulator{make(chan Packet, maxQueueLength), make(chan Packet, maxQueueLength), time.Millisecond * 10, i, j}
+				emulator := DelayEmulator{make(chan Packet, config.MaxQueueLength), make(chan Packet, config.MaxQueueLength), time.Millisecond * 10, i, j}
 				sim.queues[i] = append(sim.queues[i], emulator)
 			}
 		}
@@ -179,7 +204,7 @@ func main() {
 		fmt.Printf("packet in %d\n", n)
 
 		for _, emulator := range sim.queues[0] {
-			emulator.writeIncomingPacket(Packet{realSrc, emulator.srcAddr(), maxHops, packet[:n], time.Now()})
+			emulator.writeIncomingPacket(Packet{config.SimulatedSrcAddress, emulator.srcAddr(), config.MaxHops, packet[:n], time.Now()})
 		}
 	}
 
