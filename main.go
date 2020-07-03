@@ -32,6 +32,7 @@ func (s *BroadcastSimulator) processIncomingPackets() {
 		for _, emulator := range emulatorList {
 			go func(e LinkEmulator) {
 				for {
+					// Apply emulation to packet as soon as it's received
 					e.ApplyEmulation()
 				}
 			}(emulator)
