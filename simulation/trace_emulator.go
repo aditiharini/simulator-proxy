@@ -17,9 +17,19 @@ type TraceEmulator struct {
 	packetInTransit           Packet
 	bytesLeftInTransit        int
 	bytesLeftInDeliveryWindow int
+	src                       Address
+	dst                       Address
 }
 
-func (t TraceEmulator) loadTrace(filename string) {
+func (t *TraceEmulator) SrcAddr() Address {
+	return t.src
+}
+
+func (t *TraceEmulator) DstAddr() Address {
+	return t.dst
+}
+
+func loadTrace(filename string) []time.Duration {
 	file, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -27,27 +37,47 @@ func (t TraceEmulator) loadTrace(filename string) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+	var sendOffsets []time.Duration
 	for scanner.Scan() {
 		nextSend, err := strconv.Atoi(scanner.Text())
 		if err != nil {
 			panic(err)
 		}
 		nextSendOffset := time.Duration(nextSend) * time.Millisecond
-		t.sendOffsets = append(t.sendOffsets, nextSendOffset)
+		sendOffsets = append(sendOffsets, nextSendOffset)
+	}
+	return sendOffsets
+}
+
+func NewTraceEmulator(filename string, maxQueueSize int, src Address, dst Address) TraceEmulator {
+	return TraceEmulator{
+		baseTime:                  time.Now(),
+		sendOffsets:               loadTrace(filename),
+		currentOffsetIndex:        0,
+		inputQueue:                make(chan Packet, maxQueueSize),
+		outputQueue:               make(chan Packet, maxQueueSize),
+		havePacketInTransit:       false,
+		packetInTransit:           Packet{},
+		bytesLeftInDeliveryWindow: 0,
+		bytesLeftInTransit:        0,
+		src:                       src,
+		dst:                       dst,
 	}
 }
 
-func (t TraceEmulator) nextReleaseTime() time.Time {
+func (t *TraceEmulator) nextReleaseTime() time.Time {
 	return t.baseTime.Add(t.sendOffsets[t.currentOffsetIndex])
 }
 
-func (t TraceEmulator) skipUnusedSlots(arrivalTime time.Time) {
-	for releaseTime := t.nextReleaseTime(); releaseTime.Before(arrivalTime); {
+func (t *TraceEmulator) skipUnusedSlots(arrivalTime time.Time) {
+	releaseTime := t.nextReleaseTime()
+	for releaseTime.Before(arrivalTime) {
 		t.useDeliverySlot()
+		releaseTime = t.nextReleaseTime()
 	}
 }
 
-func (t TraceEmulator) useDeliverySlot() {
+func (t *TraceEmulator) useDeliverySlot() {
 	t.currentOffsetIndex++
 	if t.currentOffsetIndex == len(t.sendOffsets) {
 		t.currentOffsetIndex = 0
@@ -56,7 +86,7 @@ func (t TraceEmulator) useDeliverySlot() {
 	t.bytesLeftInDeliveryWindow = 1504
 }
 
-func (t TraceEmulator) waitForNextDeliveryOpportunity() {
+func (t *TraceEmulator) waitForNextDeliveryOpportunity() {
 	releaseTime := t.nextReleaseTime()
 	waitTime := releaseTime.Sub(time.Now())
 	if waitTime > 0 {
@@ -64,19 +94,19 @@ func (t TraceEmulator) waitForNextDeliveryOpportunity() {
 	}
 }
 
-func (t TraceEmulator) sendPartialPacket() {
+func (t *TraceEmulator) sendPartialPacket() {
 	t.havePacketInTransit = false
 	t.bytesLeftInDeliveryWindow -= t.bytesLeftInTransit
 	t.bytesLeftInTransit = 0
 	t.outputQueue <- t.packetInTransit
 }
 
-func (t TraceEmulator) sendFullPacket(p Packet) {
+func (t *TraceEmulator) sendFullPacket(p Packet) {
 	t.bytesLeftInDeliveryWindow -= len(p.Data)
 	t.outputQueue <- p
 }
 
-func (t TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
+func (t *TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
 	for t.bytesLeftInDeliveryWindow > 0 {
 		select {
 		case p := <-t.inputQueue:
@@ -98,7 +128,7 @@ func (t TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
 
 // Whatever simulator is running should be
 // calling this function in a loop
-func (t TraceEmulator) ApplyEmulation() {
+func (t *TraceEmulator) ApplyEmulation() {
 	// If there is a packet in transit,
 	// we want to send it as soon as we can
 	for t.havePacketInTransit {
@@ -118,10 +148,10 @@ func (t TraceEmulator) ApplyEmulation() {
 	t.sendNewPacketsImmediatelyIfPossible()
 }
 
-func (t TraceEmulator) WriteIncomingPacket(p Packet) {
+func (t *TraceEmulator) WriteIncomingPacket(p Packet) {
 	t.inputQueue <- p
 }
 
-func (t TraceEmulator) ReadOutgoingPacket() Packet {
+func (t *TraceEmulator) ReadOutgoingPacket() Packet {
 	return <-t.outputQueue
 }

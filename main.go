@@ -21,7 +21,7 @@ type Simulator interface {
 }
 
 type BroadcastSimulator struct {
-	queues   map[Address]([]LinkEmulator) // Map src to list of links
+	queues   map[Address]([](LinkEmulator)) // Map src to list of links
 	realDest int
 	tun      *water.Interface
 	tunDest  net.IP
@@ -134,8 +134,9 @@ func main() {
 		sim.queues[i] = make([]LinkEmulator, 0)
 		for j := 0; j < config.NumAddresses; j++ {
 			if i != j {
-				emulator := NewDelayEmulator(make(chan Packet, config.MaxQueueLength), make(chan Packet, config.MaxQueueLength), time.Millisecond*10, i, j)
-				sim.queues[i] = append(sim.queues[i], emulator)
+				// emulator := NewDelayEmulator(config.MaxQueueLength, time.Millisecond*10, i, j)
+				emulator := NewTraceEmulator("/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down", config.MaxQueueLength, i, j)
+				sim.queues[i] = append(sim.queues[i], &emulator)
 			}
 		}
 	}

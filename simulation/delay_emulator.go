@@ -10,11 +10,16 @@ type DelayEmulator struct {
 	dst         Address
 }
 
-func NewDelayEmulator(inputQueue chan Packet, outputQueue chan Packet, delay time.Duration, src Address, dst Address) DelayEmulator {
-	return DelayEmulator{inputQueue, outputQueue, delay, src, dst}
+func NewDelayEmulator(maxQueueLength int, delay time.Duration, src Address, dst Address) DelayEmulator {
+	return DelayEmulator{
+		inputQueue:  make(chan Packet, maxQueueLength),
+		outputQueue: make(chan Packet, maxQueueLength),
+		delay:       delay,
+		src:         src,
+		dst:         dst}
 }
 
-func (e DelayEmulator) ApplyEmulation() {
+func (e *DelayEmulator) ApplyEmulation() {
 	p := <-e.inputQueue
 	releaseTime := p.ArrivalTime.Add(e.delay)
 	delay := releaseTime.Sub(time.Now())
@@ -24,18 +29,18 @@ func (e DelayEmulator) ApplyEmulation() {
 	e.outputQueue <- p
 }
 
-func (e DelayEmulator) WriteIncomingPacket(p Packet) {
+func (e *DelayEmulator) WriteIncomingPacket(p Packet) {
 	e.inputQueue <- p
 }
 
-func (e DelayEmulator) ReadOutgoingPacket() Packet {
+func (e *DelayEmulator) ReadOutgoingPacket() Packet {
 	return <-e.outputQueue
 }
 
-func (e DelayEmulator) SrcAddr() Address {
+func (e *DelayEmulator) SrcAddr() Address {
 	return e.src
 }
 
-func (e DelayEmulator) DstAddr() Address {
+func (e *DelayEmulator) DstAddr() Address {
 	return e.dst
 }
