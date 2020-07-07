@@ -46,7 +46,7 @@ func parseTopologyConfig(filename string) TopologyJson {
 // TODO(aditi) : Make this config parsing cleaner
 // It would be nice to automatically read into structs
 // instead of manually doing casting work
-func toLinkConfigs(rawTopology TopologyJson) []LinkConfig {
+func toLinkConfigs(rawTopology TopologyJson, simulatedDstAddress Address) []LinkConfig {
 	var linkConfigs []LinkConfig
 	for strSrc, linksByDst := range rawTopology {
 		src, err := strconv.Atoi(strSrc)
@@ -56,7 +56,7 @@ func toLinkConfigs(rawTopology TopologyJson) []LinkConfig {
 		for strDst, linkInfo := range linksByDst {
 			var dst Address
 			if strDst == "base" {
-
+				dst = simulatedDstAddress
 			} else {
 				dst, err = strconv.Atoi(strDst)
 				if err != nil {
@@ -73,7 +73,7 @@ func toLinkConfigs(rawTopology TopologyJson) []LinkConfig {
 				)
 			} else if linkInfo["type"] == "trace" {
 				newLinkConfig = NewTraceLinkConfig(
-					linkInfo["filename"].(string),
+					linkInfo["file"].(string),
 					src,
 					dst,
 				)
@@ -116,7 +116,7 @@ func main() {
 	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.RoutingTableNum).Run()
 
 	sim := NewBroadcastSimulator(config.SimulatedDstAddress, dev, net.ParseIP(config.DevDstAddr))
-	linkConfigs := toLinkConfigs(topology)
+	linkConfigs := toLinkConfigs(topology, config.SimulatedDstAddress)
 
 	// Start all link emulation and start receiving/sending packets
 	sim.Start(linkConfigs, config.MaxQueueLength)

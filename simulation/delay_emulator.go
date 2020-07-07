@@ -1,6 +1,9 @@
 package simulation
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type DelayEmulator struct {
 	inputQueue  chan Packet
@@ -30,6 +33,7 @@ func (e *DelayEmulator) ApplyEmulation() {
 }
 
 func (e *DelayEmulator) WriteIncomingPacket(p Packet) {
+	fmt.Printf("emulator %v %v received packet\n", e.src, e.dst)
 	e.inputQueue <- p
 }
 
