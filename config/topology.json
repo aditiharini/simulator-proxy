@@ -1,0 +1,44 @@
+{
+    "0" : {
+        "1" : {
+            "type": "delay",
+            "delay" : 1
+        },
+        "2" : {
+            "type": "delay",
+            "delay" : 1
+        },
+        "base" : {
+            "type": "trace", 
+            "file" : "/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down"
+        }
+    },
+    "1" : {
+        "0" : {
+            "type": "delay",
+            "delay" : 1
+        },
+        "2" : {
+            "type": "delay",
+            "delay" : 1
+        },
+        "base" : {
+            "type": "trace", 
+            "file" : "/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down"
+        }
+    }, 
+    "2" : {
+        "0" : {
+            "type": "delay",
+            "delay" : 1
+        },
+        "1" : {
+            "type": "delay",
+            "delay" : 1
+        },
+        "base" : {
+            "type": "trace", 
+            "file" : "/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down"
+        }
+    }
+}

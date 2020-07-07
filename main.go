@@ -6,84 +6,12 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	. "github.com/aditiharini/simulator-proxy/simulation"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"github.com/songgao/water"
 )
-
-type Simulator interface {
-	processOutgoingPackets()
-	processIncomingPackets()
-	writeToDestination(Packet)
-}
-
-type BroadcastSimulator struct {
-	queues   map[Address]([](LinkEmulator)) // Map src to list of links
-	realDest int
-	tun      *water.Interface
-	tunDest  net.IP
-}
-
-func (s *BroadcastSimulator) processIncomingPackets() {
-	for _, emulatorList := range s.queues {
-		for _, emulator := range emulatorList {
-			go func(e LinkEmulator) {
-				for {
-					// Apply emulation to packet as soon as it's received
-					e.ApplyEmulation()
-				}
-			}(emulator)
-		}
-	}
-}
-
-func (s *BroadcastSimulator) writeToDestination(p Packet) {
-	decodedPacket := gopacket.NewPacket(p.Data, layers.IPProtocolIPv4, gopacket.Default)
-	if ipLayer := decodedPacket.Layer(layers.LayerTypeIPv4); ipLayer != nil {
-		ip, _ := ipLayer.(*layers.IPv4)
-		fmt.Printf("From src ip %s to dst ip %s\n", ip.SrcIP.String(), ip.DstIP.String())
-		ip.SrcIP = s.tunDest
-		buf := gopacket.NewSerializeBuffer()
-		err := ip.SerializeTo(buf, gopacket.SerializeOptions{ComputeChecksums: true})
-		if err != nil {
-			panic(err)
-		}
-		// TODO(aditi): Find a way to do this that uses the api
-		data := append(buf.Bytes(), ip.LayerPayload()...)
-		s.tun.Write(data)
-	} else {
-		panic("unable to decode packet")
-	}
-}
-
-func (s *BroadcastSimulator) processOutgoingPackets() {
-	for src, emulatorList := range s.queues {
-		for _, emulator := range emulatorList {
-			go func(e LinkEmulator) {
-				for {
-					packet := e.ReadOutgoingPacket()
-					// If the emulation is complete for the "real dest", we can send it out on the real device
-					if e.DstAddr() == s.realDest {
-						s.writeToDestination(packet)
-					} else if packet.HopsLeft > 0 {
-						for _, dstEmulator := range emulatorList {
-							if dstEmulator != e {
-								packet.Src = src
-								packet.Dst = dstEmulator.DstAddr()
-								packet.HopsLeft -= 1
-								packet.ArrivalTime = time.Now()
-								dstEmulator.WriteIncomingPacket(packet)
-							}
-						}
-					}
-				}
-			}(emulator)
-		}
-	}
-}
 
 func readConfig(filename string) Config {
 	var config Config
@@ -97,6 +25,65 @@ func readConfig(filename string) Config {
 		panic(err)
 	}
 	return config
+}
+
+// TODO(aditi): Make this easier to change. This is rigid and ugly
+type TopologyJson = map[string](map[string](map[string]interface{}))
+
+func parseTopologyConfig(filename string) TopologyJson {
+	var topology TopologyJson
+	confFile, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	err = json.NewDecoder(confFile).Decode(&topology)
+	if err != nil {
+		panic(err)
+	}
+	return topology
+}
+
+// TODO(aditi) : Make this config parsing cleaner
+// It would be nice to automatically read into structs
+// instead of manually doing casting work
+func toLinkConfigs(rawTopology TopologyJson) []LinkConfig {
+	var linkConfigs []LinkConfig
+	for strSrc, linksByDst := range rawTopology {
+		src, err := strconv.Atoi(strSrc)
+		if err != nil {
+			panic(err)
+		}
+		for strDst, linkInfo := range linksByDst {
+			var dst Address
+			if strDst == "base" {
+
+			} else {
+				dst, err = strconv.Atoi(strDst)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			var newLinkConfig LinkConfig
+			if linkInfo["type"] == "delay" {
+				newLinkConfig = NewDelayLinkConfig(
+					time.Millisecond*time.Duration(linkInfo["delay"].(float64)),
+					src,
+					dst,
+				)
+			} else if linkInfo["type"] == "trace" {
+				newLinkConfig = NewTraceLinkConfig(
+					linkInfo["filename"].(string),
+					src,
+					dst,
+				)
+			} else {
+				panic("unsupported link type provided")
+			}
+			linkConfigs = append(linkConfigs, newLinkConfig)
+		}
+	}
+	return linkConfigs
 }
 
 type Config struct {
@@ -113,7 +100,8 @@ type Config struct {
 }
 
 func main() {
-	config := readConfig("./config.json")
+	config := readConfig("./config/simulator.json")
+	topology := parseTopologyConfig("./config/topology.json")
 	dev, err := water.NewTUN(config.DevName)
 
 	if err != nil {
@@ -127,23 +115,11 @@ func main() {
 	exec.Command("ifconfig", dev.Name(), config.DevSrcAddr, "dstaddr", config.DevDstAddr).Run()
 	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.RoutingTableNum).Run()
 
-	sim := BroadcastSimulator{make(map[Address]([]LinkEmulator)), config.SimulatedDstAddress, dev, net.ParseIP(config.DevDstAddr)}
+	sim := NewBroadcastSimulator(config.SimulatedDstAddress, dev, net.ParseIP(config.DevDstAddr))
+	linkConfigs := toLinkConfigs(topology)
 
-	// initialize simulator
-	for i := 0; i < config.SimulatedDstAddress; i++ {
-		sim.queues[i] = make([]LinkEmulator, 0)
-		for j := 0; j < config.NumAddresses; j++ {
-			if i != j {
-				// emulator := NewDelayEmulator(config.MaxQueueLength, time.Millisecond*10, i, j)
-				emulator := NewTraceEmulator("/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down", config.MaxQueueLength, i, j)
-				sim.queues[i] = append(sim.queues[i], &emulator)
-			}
-		}
-	}
-
-	// start simulator
-	sim.processIncomingPackets()
-	sim.processOutgoingPackets()
+	// Start all link emulation and start receiving/sending packets
+	sim.Start(linkConfigs, config.MaxQueueLength)
 
 	packet := make([]byte, 2000)
 	for {
@@ -154,15 +130,13 @@ func main() {
 
 		fmt.Printf("packet in %d\n", n)
 
-		for _, emulator := range sim.queues[0] {
-			emulator.WriteIncomingPacket(Packet{
-				Src:         config.SimulatedSrcAddress,
-				Dst:         emulator.SrcAddr(),
-				HopsLeft:    config.MaxHops,
-				Data:        packet[:n],
-				ArrivalTime: time.Now(),
-			})
+		packet := Packet{
+			Src:         config.SimulatedSrcAddress,
+			HopsLeft:    config.MaxHops,
+			Data:        packet[:n],
+			ArrivalTime: time.Now(),
 		}
+		sim.BroadcastPacket(packet, config.SimulatedSrcAddress)
 	}
 
 }
