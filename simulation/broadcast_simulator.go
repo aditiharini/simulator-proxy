@@ -58,20 +58,48 @@ func (s *BroadcastSimulator) ProcessIncomingPackets() {
 	}
 }
 
+// TODO(aditi): This is pretty heavyweight.
 func (s *BroadcastSimulator) writeToDestination(p Packet) {
 	decodedPacket := gopacket.NewPacket(p.Data, layers.IPProtocolIPv4, gopacket.Default)
+	for _, layer := range decodedPacket.Layers() {
+		fmt.Println("- ", layer.LayerType())
+	}
 	if ipLayer := decodedPacket.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
-		fmt.Printf("From src ip %s to dst ip %s\n", ip.SrcIP.String(), ip.DstIP.String())
 		ip.SrcIP = s.tunDest
 		buf := gopacket.NewSerializeBuffer()
-		err := ip.SerializeTo(buf, gopacket.SerializeOptions{ComputeChecksums: true})
-		if err != nil {
-			panic(err)
+		if udpLayer := decodedPacket.Layer(layers.LayerTypeUDP); udpLayer != nil {
+			udp, _ := udpLayer.(*layers.UDP)
+			udp.SetNetworkLayerForChecksum(ip)
+			err := gopacket.SerializeLayers(
+				buf,
+				gopacket.SerializeOptions{ComputeChecksums: true},
+				ip,
+				udp,
+				gopacket.Payload(udpLayer.LayerPayload()),
+			)
+			if err != nil {
+				panic(err)
+			}
+		} else if tcpLayer := decodedPacket.Layer(layers.LayerTypeUDP); udpLayer != nil {
+			tcp, _ := tcpLayer.(*layers.UDP)
+			tcp.SetNetworkLayerForChecksum(ip)
+			err := gopacket.SerializeLayers(
+				buf,
+				gopacket.SerializeOptions{ComputeChecksums: true},
+				ip,
+				tcp,
+				gopacket.Payload(udpLayer.LayerPayload()),
+			)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			panic("unsupported application layer")
 		}
+		fmt.Printf("packet %v sent out from %v\n", p.Id, p.Src)
 		// TODO(aditi): Find a way to do this that uses the api
-		data := append(buf.Bytes(), ip.LayerPayload()...)
-		s.tun.Write(data)
+		s.tun.Write(buf.Bytes())
 	} else {
 		panic("unable to decode packet")
 	}

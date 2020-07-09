@@ -10,6 +10,7 @@ type Packet struct {
 	HopsLeft    int
 	Data        []byte
 	ArrivalTime time.Time
+	Id          int
 }
 
 type LinkEmulator interface {

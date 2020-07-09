@@ -2,7 +2,6 @@ package simulation
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -150,7 +149,6 @@ func (t *TraceEmulator) ApplyEmulation() {
 }
 
 func (t *TraceEmulator) WriteIncomingPacket(p Packet) {
-	fmt.Printf("emulator %v %v received packet\n", t.src, t.dst)
 	t.inputQueue <- p
 }
 

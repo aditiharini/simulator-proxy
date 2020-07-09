@@ -100,8 +100,11 @@ type Config struct {
 }
 
 func main() {
-	config := readConfig("./config/simulator.json")
-	topology := parseTopologyConfig("./config/topology.json")
+	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
+	// starting any mahimahi instances or simulator.
+	// This will stop router advertisement messages.
+	config := readConfig("../../config/simulator.json")
+	topology := parseTopologyConfig("../../config/topology.json")
 	dev, err := water.NewTUN(config.DevName)
 
 	if err != nil {
@@ -122,6 +125,7 @@ func main() {
 	sim.Start(linkConfigs, config.MaxQueueLength)
 
 	packet := make([]byte, 2000)
+	id := 0
 	for {
 		n, err := dev.Read(packet)
 		if err != nil {
@@ -135,7 +139,9 @@ func main() {
 			HopsLeft:    config.MaxHops,
 			Data:        packet[:n],
 			ArrivalTime: time.Now(),
+			Id:          id,
 		}
+		id++
 		sim.BroadcastPacket(packet, config.SimulatedSrcAddress)
 	}
 
