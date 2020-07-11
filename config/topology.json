@@ -24,7 +24,7 @@
         },
         "base" : {
             "type": "trace", 
-            "file" : "/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down"
+            "file" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-short.down"
         }
     }, 
     "2" : {
@@ -38,7 +38,7 @@
         },
         "base" : {
             "type": "trace", 
-            "file" : "/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down"
+            "file" : "/home/ubuntu/mahimahi/traces/ATT-LTE-driving.down"
         }
     }
 }

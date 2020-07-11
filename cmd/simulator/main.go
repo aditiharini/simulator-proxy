@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -131,8 +130,6 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-
-		fmt.Printf("packet in %d\n", n)
 
 		packet := Packet{
 			Src:         config.SimulatedSrcAddress,

@@ -17,7 +17,7 @@ func main() {
 		panic(err)
 	}
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		msg := "hi"
 		_, err := conn.Write([]byte(msg))
 		if err != nil {

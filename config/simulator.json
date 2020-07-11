@@ -4,7 +4,7 @@
     "simulatedSrcAddress" : 0,
     "simulatedDstAddress" : 3,
     "maxQueueLength" : 1000,
-    "maxHops" : 4,
+    "maxHops" : 2,
     "devName" : "proxy",
     "devSrcAddr" : "10.0.0.1",
     "devDstAddr" : "10.0.0.2",

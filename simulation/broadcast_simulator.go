@@ -61,9 +61,6 @@ func (s *BroadcastSimulator) ProcessIncomingPackets() {
 // TODO(aditi): This is pretty heavyweight.
 func (s *BroadcastSimulator) writeToDestination(p Packet) {
 	decodedPacket := gopacket.NewPacket(p.Data, layers.IPProtocolIPv4, gopacket.Default)
-	for _, layer := range decodedPacket.Layers() {
-		fmt.Println("- ", layer.LayerType())
-	}
 	if ipLayer := decodedPacket.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
 		ip.SrcIP = s.tunDest
@@ -97,7 +94,7 @@ func (s *BroadcastSimulator) writeToDestination(p Packet) {
 		} else {
 			panic("unsupported application layer")
 		}
-		fmt.Printf("packet %v sent out from %v\n", p.Id, p.Src)
+		fmt.Printf("packet %v from %v\n", p.Id, p.Src)
 		// TODO(aditi): Find a way to do this that uses the api
 		s.tun.Write(buf.Bytes())
 	} else {
