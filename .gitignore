@@ -4,3 +4,5 @@ cmd/packet-sender/packet-sender
 cmd/race-results/race-results
 
 *.out
+
+!cmd/race-results/sample-races/*
