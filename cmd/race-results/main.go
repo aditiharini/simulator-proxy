@@ -11,7 +11,8 @@ import (
 )
 
 type Stats struct {
-	numWins map[Address]int
+	numWins    map[Address]int
+	packetSeen map[int]bool
 }
 
 func (s *Stats) prettyPrint() {
@@ -44,13 +45,16 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	stats := Stats{numWins: make(map[Address]int)}
+	stats := Stats{numWins: make(map[Address]int), packetSeen: make(map[int]bool)}
 	for scanner.Scan() {
-		address, _ := parseLine(scanner.Text())
-		if _, ok := stats.numWins[address]; ok {
-			stats.numWins[address] = 1
-		} else {
-			stats.numWins[address]++
+		address, id := parseLine(scanner.Text())
+		if _, ok := stats.packetSeen[id]; !ok {
+			if _, ok := stats.numWins[address]; ok {
+				stats.numWins[address]++
+			} else {
+				stats.numWins[address] = 1
+			}
+			stats.packetSeen[id] = true
 		}
 	}
 

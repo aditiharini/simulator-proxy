@@ -104,7 +104,11 @@ func main() {
 	// This will stop router advertisement messages.
 	config := readConfig("../../config/simulator.json")
 	topology := parseTopologyConfig("../../config/topology.json")
-	dev, err := water.NewTUN(config.DevName)
+	devConfig := water.Config{
+		DeviceType: water.TUN,
+	}
+	devConfig.Name = config.DevName
+	dev, err := water.New(devConfig)
 
 	if err != nil {
 		panic(err)
