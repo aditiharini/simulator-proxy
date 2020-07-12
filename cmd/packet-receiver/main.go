@@ -1,14 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
-	"os"
 )
 
 func main() {
-	// Address to listen on
-	addr, err := net.ResolveUDPAddr("udp", os.Args[1])
+	listenAddr := flag.String("listen-on", "", "address and port to listen on ")
+	flag.Parse()
+
+	addr, err := net.ResolveUDPAddr("udp", *listenAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -21,13 +23,15 @@ func main() {
 
 	defer conn.Close()
 
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 2048)
+	packetNum := 0
 	for {
 		numBytes, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			panic(err)
 		}
 
-		fmt.Println(string(buffer[:numBytes]))
+		packetNum++
+		fmt.Println(packetNum, ":", buffer[:numBytes])
 	}
 }
