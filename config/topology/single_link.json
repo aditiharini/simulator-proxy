@@ -1,0 +1,8 @@
+{
+    "0" : {
+        "base" : {
+            "type": "trace", 
+            "file" : "/home/ubuntu/mahimahi/traces/TMobile-UMTS-driving.down"
+        }
+    }
+}

@@ -157,9 +157,22 @@ func (t *TraceEmulator) ApplyEmulation() {
 }
 
 func (t *TraceEmulator) WriteIncomingPacket(p Packet) {
+	log.WithFields(log.Fields{
+		"event": "packet_entered_link",
+		"id":    p.Id,
+		"src":   t.src,
+		"dst":   t.dst,
+	}).Info()
 	t.inputQueue <- p
 }
 
 func (t *TraceEmulator) ReadOutgoingPacket() Packet {
-	return <-t.outputQueue
+	p := <-t.outputQueue
+	log.WithFields(log.Fields{
+		"event": "packet_left_link",
+		"id":    p.Id,
+		"src":   t.src,
+		"dst":   t.dst,
+	}).Info()
+	return p
 }

@@ -24,14 +24,23 @@ func (t *simTime) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
+type Link struct {
+	src int
+	dst int
+}
+
 type Stats struct {
-	entryTime     map[int]simTime
-	firstExitTime map[int]simTime
+	entryTime        map[int]simTime
+	firstExitTime    map[int]simTime
+	perLinkEntryTime map[Link]simTime
+	perLinkExitTime  map[Link]simTime
 }
 
 func (s Stats) prettyPrint() {
 	latencies := s.calculateLatencies()
 	fmt.Println(latencies)
+	perLinkLatencies := s.calculatePerLinkLatencies()
+	fmt.Println(perLinkLatencies)
 }
 
 func (s Stats) calculateLatencies() map[int]time.Duration {
@@ -39,6 +48,15 @@ func (s Stats) calculateLatencies() map[int]time.Duration {
 	for id, entry := range s.entryTime {
 		exit := s.firstExitTime[id]
 		latencyMap[id] = exit.Sub(entry.Time)
+	}
+	return latencyMap
+}
+
+func (s Stats) calculatePerLinkLatencies() map[Link]time.Duration {
+	latencyMap := make(map[Link]time.Duration)
+	for link, entry := range s.perLinkEntryTime {
+		exit := s.perLinkExitTime[link]
+		latencyMap[link] = exit.Sub(entry.Time)
 	}
 	return latencyMap
 }
@@ -77,6 +95,28 @@ type StartTraceEvent struct {
 func (e StartTraceEvent) process(stats *Stats) {
 }
 
+type PacketEnteredLinkEvent struct {
+	Id   int     `json:"id"`
+	Src  Address `json:"src"`
+	Dst  Address `json:"dst"`
+	Time simTime `json:"time"`
+}
+
+func (e PacketEnteredLinkEvent) process(stats *Stats) {
+	stats.perLinkEntryTime[Link{src: e.Src, dst: e.Dst}] = e.Time
+}
+
+type PacketLeftLinkEvent struct {
+	Id   int     `json:"id"`
+	Src  Address `json:"src"`
+	Dst  Address `json:"dst"`
+	Time simTime `json:"time"`
+}
+
+func (e PacketLeftLinkEvent) process(stats *Stats) {
+	stats.perLinkExitTime[Link{src: e.Src, dst: e.Dst}] = e.Time
+}
+
 func parseLogLine(data []byte) Event {
 	var mappedData map[string]interface{}
 	json.Unmarshal(data, &mappedData)
@@ -92,6 +132,15 @@ func parseLogLine(data []byte) Event {
 		var startTrace StartTraceEvent
 		json.Unmarshal(data, &startTrace)
 		return startTrace
+	} else if mappedData["event"] == "packet_left_link" {
+		var packetLeftLink PacketLeftLinkEvent
+		json.Unmarshal(data, &packetLeftLink)
+		return packetLeftLink
+	} else if mappedData["event"] == "packet_entered_link" {
+		var packetEnteredLink PacketEnteredLinkEvent
+		json.Unmarshal(data, &packetEnteredLink)
+		return packetEnteredLink
+
 	} else {
 		panic("unrecognized event type")
 	}

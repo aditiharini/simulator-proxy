@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"net"
 	"os"
 	"os/exec"
@@ -87,7 +88,6 @@ func toLinkConfigs(rawTopology TopologyJson, simulatedDstAddress Address) []Link
 }
 
 type Config struct {
-	NumAddresses        int    `json:"numAddresses"`
 	RealSrcAddress      string `json:"realSrcAddress"`
 	SimulatedSrcAddress int    `json:"simulatedSrcAddress"`
 	SimulatedDstAddress int    `json:"simulatedDstAddress"`
@@ -107,8 +107,12 @@ func main() {
 	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
 	// starting any mahimahi instances or simulator.
 	// This will stop router advertisement messages.
-	config := readConfig("../../config/simulator.json")
-	topology := parseTopologyConfig("../../config/topology.json")
+	configFile := flag.String("config", "../../config/global/default.json", "some global configuration params")
+	topologyFile := flag.String("topology", "../../config/topology/default.json", "topology configuration")
+	flag.Parse()
+
+	config := readConfig(*configFile)
+	topology := parseTopologyConfig(*topologyFile)
 	devConfig := water.Config{
 		DeviceType: water.TUN,
 	}
