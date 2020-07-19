@@ -1,12 +1,12 @@
 package simulation
 
 import (
-	"fmt"
 	"net"
 	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	log "github.com/sirupsen/logrus"
 	"github.com/songgao/water"
 )
 
@@ -94,7 +94,13 @@ func (s *BroadcastSimulator) writeToDestination(p Packet) {
 		} else {
 			panic("unsupported application layer")
 		}
-		fmt.Printf("packet %v from %v\n", p.Id, p.Src)
+
+		log.WithFields(log.Fields{
+			"event": "packet_sent",
+			"id":    p.Id,
+			"src":   p.Src,
+		}).Info()
+
 		// TODO(aditi): Find a way to do this that uses the api
 		s.tun.Write(buf.Bytes())
 	} else {

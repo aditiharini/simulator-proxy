@@ -2,6 +2,7 @@ cmd/simulator/simulator
 cmd/packet-receiver/packet-receiver
 cmd/packet-sender/packet-sender
 cmd/race-results/race-results
+cmd/process-logs/process-logs
 
 *.out
 

@@ -4,12 +4,14 @@ import (
 	"crypto/rand"
 	"flag"
 	"net"
+	"time"
 )
 
 func main() {
 	dest := flag.String("dest", "", "destination ip address and port")
 	numPackets := flag.Int("count", 1, "number of packets to send")
 	packetSize := flag.Int("size", 10, "size of each packet sent")
+	waitTime := flag.Int("wait", 0, "ms to wait between sending packets")
 	flag.Parse()
 
 	addr, err := net.ResolveUDPAddr("udp", *dest)
@@ -37,6 +39,9 @@ func main() {
 		}
 		if bytesWritten != *packetSize {
 			panic("incorrect number of bytes written to device")
+		}
+		if *waitTime > 0 {
+			time.Sleep(time.Millisecond * time.Duration(*waitTime))
 		}
 	}
 

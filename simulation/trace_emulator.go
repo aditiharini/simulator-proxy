@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type TraceEmulator struct {
@@ -50,8 +52,14 @@ func loadTrace(filename string) []time.Duration {
 }
 
 func NewTraceEmulator(filename string, maxQueueSize int, src Address, dst Address) TraceEmulator {
+	now := time.Now()
+	log.WithFields(log.Fields{
+		"event": "start_trace",
+		"src":   src,
+		"dst":   dst,
+	}).WithTime(now).Info()
 	return TraceEmulator{
-		baseTime:                  time.Now(),
+		baseTime:                  now,
 		sendOffsets:               loadTrace(filename),
 		currentOffsetIndex:        0,
 		inputQueue:                make(chan Packet, maxQueueSize),

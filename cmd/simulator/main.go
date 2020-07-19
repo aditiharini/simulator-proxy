@@ -9,6 +9,7 @@ import (
 	"time"
 
 	. "github.com/aditiharini/simulator-proxy/simulation"
+	log "github.com/sirupsen/logrus"
 	"github.com/songgao/water"
 )
 
@@ -99,6 +100,10 @@ type Config struct {
 }
 
 func main() {
+	log.SetFormatter(&log.JSONFormatter{
+		TimestampFormat: time.StampMicro,
+	})
+	log.SetOutput(os.Stdout)
 	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
 	// starting any mahimahi instances or simulator.
 	// This will stop router advertisement messages.
@@ -134,6 +139,10 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		log.WithFields(log.Fields{
+			"event": "packet_received",
+			"id":    id,
+		}).Info()
 
 		packet := Packet{
 			Src:         config.SimulatedSrcAddress,
