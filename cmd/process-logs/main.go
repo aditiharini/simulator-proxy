@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -11,8 +13,25 @@ import (
 	. "github.com/aditiharini/simulator-proxy/simulation"
 )
 
+type PacketId = int
+
 type simTime struct {
 	time.Time
+}
+type OffsetTime struct {
+	offset time.Duration
+	base   simTime
+}
+
+func (t *OffsetTime) normalizeTo(newBase simTime) {
+	oldBase := t.base
+	difference := oldBase.Sub(newBase.Time)
+	t.base = newBase
+	t.offset = t.offset + difference
+}
+
+func (t *OffsetTime) replaceBaseWithoutNormalizing(newBase simTime) {
+	t.base = newBase
 }
 
 func (t *simTime) UnmarshalJSON(buf []byte) error {
@@ -24,41 +43,105 @@ func (t *simTime) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
+type Graph interface {
+	addDataset(data []interface{})
+	toCsv()
+}
+
+type LatencyData struct {
+	time    OffsetTime
+	latency time.Duration
+}
+
+type Dataset interface {
+	getColumnNames() []string
+}
+
+type LatencyDataset struct {
+	data []LatencyData
+}
+
+func (ld *LatencyDataset) getColumnNames() []string {
+	return []string{"time", "latency"}
+}
+
+func (ld *LatencyDataset) replaceBaseTimes(newBase simTime) {
+	for _, data := range ld.data {
+		data.time.replaceBaseWithoutNormalizing(newBase)
+	}
+}
+
+func (ld *LatencyDataset) normalizeTimesTo(newBase simTime) {
+	for _, data := range ld.data {
+		data.time.normalizeTo(newBase)
+	}
+}
+
+func (ld LatencyData) toStringList() []string {
+	time := fmt.Sprintf("%d", ld.time.offset.Milliseconds())
+	latency := fmt.Sprintf("%d", ld.latency.Milliseconds())
+	return []string{time, latency}
+}
+
+func (lg *LatencyDataset) toCsv(filename string) {
+	file, err := os.Create(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	w := csv.NewWriter(file)
+	defer w.Flush()
+
+	columns := []string{"time", "latency"}
+	w.Write(columns)
+	for _, latencyData := range lg.data {
+		w.Write(latencyData.toStringList())
+	}
+}
+
 type Link struct {
 	src int
 	dst int
 }
 
 type Stats struct {
-	entryTime        map[int]simTime
-	firstExitTime    map[int]simTime
-	perLinkEntryTime map[Link]simTime
-	perLinkExitTime  map[Link]simTime
+	entryTime        map[PacketId]simTime
+	firstExitTime    map[PacketId]simTime
+	perLinkEntryTime map[Link](map[PacketId]simTime)
+	perLinkExitTime  map[Link](map[PacketId]simTime)
+	startTime        simTime
+	perLinkStartTime map[Link]simTime
 }
 
-func (s Stats) prettyPrint() {
-	latencies := s.calculateLatencies()
-	fmt.Println(latencies)
-	perLinkLatencies := s.calculatePerLinkLatencies()
-	fmt.Println(perLinkLatencies)
+func (s Stats) getTimeAsOffsetFromGlobalStart(eventTime simTime) OffsetTime {
+	baseTime := s.startTime
+	return OffsetTime{offset: eventTime.Sub(baseTime.Time), base: baseTime}
 }
 
-func (s Stats) calculateLatencies() map[int]time.Duration {
-	latencyMap := make(map[int]time.Duration)
+func (s Stats) getTimeAsOffsetFromLinkStart(eventTime simTime, link Link) OffsetTime {
+	baseTime := s.perLinkStartTime[link]
+	return OffsetTime{offset: eventTime.Sub(baseTime.Time), base: baseTime}
+}
+
+func (s Stats) calculateLatencies() []LatencyData {
+	var latencyData []LatencyData
 	for id, entry := range s.entryTime {
 		exit := s.firstExitTime[id]
-		latencyMap[id] = exit.Sub(entry.Time)
+		offsetTime := s.getTimeAsOffsetFromGlobalStart(entry)
+		latencyData = append(latencyData, LatencyData{time: offsetTime, latency: exit.Sub(entry.Time)})
 	}
-	return latencyMap
+	return latencyData
 }
 
-func (s Stats) calculatePerLinkLatencies() map[Link]time.Duration {
-	latencyMap := make(map[Link]time.Duration)
-	for link, entry := range s.perLinkEntryTime {
-		exit := s.perLinkExitTime[link]
-		latencyMap[link] = exit.Sub(entry.Time)
+func (s Stats) calculatePerLinkLatencies(link Link) []LatencyData {
+	var latencyData []LatencyData
+	for id, entryTime := range s.perLinkEntryTime[link] {
+		exit := s.perLinkExitTime[link][id]
+		offsetTime := s.getTimeAsOffsetFromLinkStart(entryTime, link)
+		latencyData = append(latencyData, LatencyData{time: offsetTime, latency: exit.Sub(entryTime.Time)})
 	}
-	return latencyMap
+	return latencyData
 }
 
 type Event interface {
@@ -93,6 +176,15 @@ type StartTraceEvent struct {
 }
 
 func (e StartTraceEvent) process(stats *Stats) {
+	stats.perLinkStartTime[Link{src: e.Src, dst: e.Dst}] = e.Time
+}
+
+type StartSimulatorEvent struct {
+	Time simTime `json:"time"`
+}
+
+func (e StartSimulatorEvent) process(stats *Stats) {
+	stats.startTime = e.Time
 }
 
 type PacketEnteredLinkEvent struct {
@@ -103,7 +195,11 @@ type PacketEnteredLinkEvent struct {
 }
 
 func (e PacketEnteredLinkEvent) process(stats *Stats) {
-	stats.perLinkEntryTime[Link{src: e.Src, dst: e.Dst}] = e.Time
+	link := Link{src: e.Src, dst: e.Dst}
+	if _, ok := stats.perLinkEntryTime[link]; !ok {
+		stats.perLinkEntryTime[link] = make(map[int]simTime)
+	}
+	stats.perLinkEntryTime[link][e.Id] = e.Time
 }
 
 type PacketLeftLinkEvent struct {
@@ -114,7 +210,11 @@ type PacketLeftLinkEvent struct {
 }
 
 func (e PacketLeftLinkEvent) process(stats *Stats) {
-	stats.perLinkExitTime[Link{src: e.Src, dst: e.Dst}] = e.Time
+	link := Link{src: e.Src, dst: e.Dst}
+	if _, ok := stats.perLinkExitTime[link]; !ok {
+		stats.perLinkExitTime[link] = make(map[int]simTime)
+	}
+	stats.perLinkExitTime[Link{src: e.Src, dst: e.Dst}][e.Id] = e.Time
 }
 
 func parseLogLine(data []byte) Event {
@@ -140,16 +240,26 @@ func parseLogLine(data []byte) Event {
 		var packetEnteredLink PacketEnteredLinkEvent
 		json.Unmarshal(data, &packetEnteredLink)
 		return packetEnteredLink
-
+	} else if mappedData["event"] == "start_simulator" {
+		var startSimulator StartSimulatorEvent
+		json.Unmarshal(data, &startSimulator)
+		return startSimulator
 	} else {
 		panic("unrecognized event type")
 	}
 }
 
-func main() {
-	filename := os.Args[1]
+func splitLinkLogs(combined string) []string {
+	return strings.Split(combined, ",")
+}
 
-	file, err := os.Open(filename)
+func main() {
+	baseStation := 999
+	newLog := flag.String("newlog", "full.log", "file name of experiment log")
+	linkLogs := flag.String("linkLogs", "0.log,1.log,2.log", "file name of single link logs")
+	flag.Parse()
+
+	file, err := os.Open(*newLog)
 	if err != nil {
 		panic(err)
 	}
@@ -159,13 +269,50 @@ func main() {
 	scanner := bufio.NewScanner(file)
 
 	stats := Stats{
-		entryTime:     make(map[int]simTime),
-		firstExitTime: make(map[int]simTime),
+		entryTime:        make(map[PacketId]simTime),
+		firstExitTime:    make(map[PacketId]simTime),
+		perLinkEntryTime: make(map[Link](map[PacketId]simTime)),
+		perLinkExitTime:  make(map[Link](map[PacketId]simTime)),
+		perLinkStartTime: make(map[Link]simTime),
 	}
+
 	for scanner.Scan() {
 		event := parseLogLine(scanner.Bytes())
 		event.process(&stats)
 	}
-	stats.prettyPrint()
+
+	combinedDataset := LatencyDataset{data: stats.calculateLatencies()}
+	combinedDataset.toCsv("tmp/combined.csv")
+
+	for i, linkLog := range splitLinkLogs(*linkLogs) {
+		file, err := os.Open(linkLog)
+		if err != nil {
+			panic(err)
+		}
+
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+
+		linkStats := Stats{
+			entryTime:        make(map[PacketId]simTime),
+			firstExitTime:    make(map[PacketId]simTime),
+			perLinkEntryTime: make(map[Link](map[PacketId]simTime)),
+			perLinkExitTime:  make(map[Link](map[PacketId]simTime)),
+			perLinkStartTime: make(map[Link]simTime),
+		}
+
+		for scanner.Scan() {
+			event := parseLogLine(scanner.Bytes())
+			event.process(&linkStats)
+		}
+
+		latencies := linkStats.calculateLatencies()
+		correspondingLinkStart := stats.perLinkStartTime[Link{src: i, dst: baseStation}]
+		linkDataset := LatencyDataset{data: latencies}
+		linkDataset.replaceBaseTimes(correspondingLinkStart)
+		linkDataset.normalizeTimesTo(stats.startTime)
+		linkDataset.toCsv(fmt.Sprintf("tmp/link%d.csv", i))
+	}
 
 }

@@ -34,6 +34,9 @@ func NewBroadcastSimulator(baseAddress Address, device *water.Interface, deviceD
 }
 
 func (s *BroadcastSimulator) Start(linkConfigs []LinkConfig, maxQueueLength int) {
+	log.WithFields(log.Fields{
+		"event": "start_simulator",
+	}).Info()
 	for _, linkConfig := range linkConfigs {
 		srcAddr := linkConfig.SrcAddr()
 		if _, ok := s.queues[srcAddr]; !ok {
