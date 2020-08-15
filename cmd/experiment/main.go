@@ -227,8 +227,9 @@ func main() {
 	}
 
 	if *experimentName != "" {
-		uploadCmd := fmt.Sprintf("~/dropbox_uploader.sh tmp Drone-Project/broadcast/%s", *experimentName)
-		if err := exec.Command("bash", "-c", uploadCmd).Run(); err != nil {
+		uploadCmd := fmt.Sprintf("~/dropbox_uploader.sh upload tmp Drone-Project/broadcast/%s", *experimentName)
+		if out, err := exec.Command("bash", "-c", uploadCmd).CombinedOutput(); err != nil {
+			fmt.Println(string(out))
 			panic(err)
 		}
 	}
