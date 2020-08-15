@@ -256,7 +256,8 @@ func splitLinkLogs(combined string) []string {
 func main() {
 	baseStation := 999
 	newLog := flag.String("newlog", "full.log", "file name of experiment log")
-	linkLogs := flag.String("linkLogs", "0.log,1.log,2.log", "file name of single link logs")
+	linkLogs := flag.String("linkLogs", "1.log,1.log,1.log", "file name of single link logs")
+	outdir := flag.String("outdir", "tmp", "where to write output link csvs")
 	flag.Parse()
 
 	file, err := os.Open(*newLog)
@@ -282,7 +283,8 @@ func main() {
 	}
 
 	combinedDataset := LatencyDataset{data: stats.calculateLatencies()}
-	combinedDataset.toCsv("tmp/combined.csv")
+	combinedPath := fmt.Sprintf("%s/combined.csv", *outdir)
+	combinedDataset.toCsv(combinedPath)
 
 	for i, linkLog := range splitLinkLogs(*linkLogs) {
 		file, err := os.Open(linkLog)
@@ -307,12 +309,13 @@ func main() {
 			event.process(&linkStats)
 		}
 
-		latencies := linkStats.calculateLatencies()
+		latencies := linkStats.calculatePerLinkLatencies(Link{src: 0, dst: baseStation})
 		correspondingLinkStart := stats.perLinkStartTime[Link{src: i, dst: baseStation}]
 		linkDataset := LatencyDataset{data: latencies}
 		linkDataset.replaceBaseTimes(correspondingLinkStart)
 		linkDataset.normalizeTimesTo(stats.startTime)
-		linkDataset.toCsv(fmt.Sprintf("tmp/link%d.csv", i))
+		linkPath := fmt.Sprintf("%s/link%d.csv", *outdir, i)
+		linkDataset.toCsv(linkPath)
 	}
 
 }

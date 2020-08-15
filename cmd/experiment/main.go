@@ -177,17 +177,6 @@ func runSimulator(inputFile string, outputFile string) {
 	time.Sleep(time.Second * time.Duration(1))
 }
 
-func testSimulator() {
-	simCmd := fmt.Sprintf("cd ../simulator && sudo ./simulator -topology=../experiment/tmp/inputs/full/full.json")
-	sim := run(simCmd, "SIM", true, true)
-	time.Sleep(time.Second * time.Duration(5))
-	sim.Process.Signal(os.Interrupt)
-	if err := exec.Command("sudo", "killall", "simulator").Run(); err != nil {
-		panic(err)
-	}
-	// syscall.Kill(-sim.Process.Pid, syscall.SIGINT)
-}
-
 func main() {
 	// Generate config- first hard code, then take parameters
 	// This is necessary when trying to increase number of drones
@@ -205,6 +194,7 @@ func main() {
 	exec.Command("mkdir", "tmp/inputs/full").Run()
 	exec.Command("mkdir", "-p", "tmp/outputs/links").Run()
 	exec.Command("mkdir", "tmp/outputs/full").Run()
+	exec.Command("mkdir", "tmp/outputs/csv").Run()
 	processConfig(*fullyConnectedConfig, "tmp/inputs/full", "tmp/inputs/links")
 
 	linkFiles, err := ioutil.ReadDir("tmp/inputs/links")
@@ -220,5 +210,19 @@ func main() {
 	}
 
 	runSimulator("tmp/inputs/full/full.json", "tmp/outputs/full/full.log")
+
+	linkLogs, err := ioutil.ReadDir("tmp/outputs/links")
+	var strLinkLogs []string
+	for _, log := range linkLogs {
+		strLinkLogs = append(strLinkLogs, fmt.Sprintf("../experiment/tmp/outputs/links/%s", log.Name()))
+	}
+
+	fullLinkLogs := strings.Join(strLinkLogs, ",")
+	fullLog := "../experiment/tmp/outputs/full/full.log"
+	logCmd := fmt.Sprintf("cd ../process-logs && ./process-logs -newlog=%s -linkLogs=%s -outdir=%s", fullLog, fullLinkLogs, "../experiment/tmp/outputs/csv")
+	if out, err := exec.Command("bash", "-c", logCmd).CombinedOutput(); err != nil {
+		fmt.Println(string(out))
+		panic(err)
+	}
 
 }
