@@ -1,7 +1,7 @@
 # simulator-proxy
 Dependencies:
-Put dropbox uploading script from https://github.com/andreafabrizi/Dropbox-Uploader in ~
-Install https://github.com/ravinet/mahimahi
+- Put dropbox uploading script from https://github.com/andreafabrizi/Dropbox-Uploader in ~
+- Install https://github.com/ravinet/mahimahi
 
 Current plan:
 - try to push broadcast to the limit by increasing the number of drones
