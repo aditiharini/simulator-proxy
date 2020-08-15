@@ -1,8 +1,8 @@
 {
-    "realSrcAddress" : "100.64.0.2",
+    "realSrcAddress" : "100.64.0.4",
     "simulatedSrcAddress" : 0,
     "simulatedDstAddress" : 999,
-    "maxQueueLength" : 1000,
+    "maxQueueLength" : 5000,
     "maxHops" : 2,
     "devName" : "proxy",
     "devSrcAddr" : "10.0.0.1",

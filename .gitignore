@@ -3,5 +3,8 @@ cmd/packet-receiver/packet-receiver
 cmd/packet-sender/packet-sender
 cmd/process-logs/process-logs
 cmd/process-logs/tmp/*
+cmd/experiment/experiment
+cmd/experiment/tmp/*
+
 *.log
 *.out

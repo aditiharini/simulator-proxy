@@ -1,8 +1,0 @@
-{
-    "0" : {
-        "base" : {
-            "type": "trace", 
-            "file" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-short.down"
-        }
-    }
-}

@@ -126,7 +126,7 @@ func main() {
 	exec.Command("ip", "rule", "delete", "table", config.RoutingTableNum).Run()
 	exec.Command("ip", "link", "set", "dev", dev.Name(), "up").Run()
 	exec.Command("ip", "addr", "add", config.DevSrcAddr, "dev", dev.Name()).Run()
-	exec.Command("ip", "rule", "add", "from", config.RealSrcAddress, "table", "1").Run()
+	exec.Command("ip", "rule", "add", "from", config.RealSrcAddress, "table", config.RoutingTableNum).Run()
 	exec.Command("ifconfig", dev.Name(), config.DevSrcAddr, "dstaddr", config.DevDstAddr).Run()
 	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.RoutingTableNum).Run()
 
@@ -136,10 +136,10 @@ func main() {
 	// Start all link emulation and start receiving/sending packets
 	sim.Start(linkConfigs, config.MaxQueueLength)
 
-	packet := make([]byte, 2000)
 	id := 0
 	for {
-		n, err := dev.Read(packet)
+		packetBuf := make([]byte, 2000)
+		n, err := dev.Read(packetBuf)
 		if err != nil {
 			panic(err)
 		}
@@ -147,11 +147,12 @@ func main() {
 			"event": "packet_received",
 			"id":    id,
 		}).Info()
+		packetData := packetBuf[:n]
 
 		packet := Packet{
 			Src:         config.SimulatedSrcAddress,
 			HopsLeft:    config.MaxHops,
-			Data:        packet[:n],
+			Data:        packetData,
 			ArrivalTime: time.Now(),
 			Id:          id,
 		}
