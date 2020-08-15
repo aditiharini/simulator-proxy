@@ -186,6 +186,7 @@ func main() {
 
 	// Need to be able to generate traces in the future
 	fullyConnectedConfig := flag.String("topology", "", "fully connected config")
+	experimentName := flag.String("experimentName", "", "name to upload experiment with")
 	flag.Parse()
 
 	exec.Command("rm", "-rf", "tmp").Run()
@@ -223,6 +224,13 @@ func main() {
 	if out, err := exec.Command("bash", "-c", logCmd).CombinedOutput(); err != nil {
 		fmt.Println(string(out))
 		panic(err)
+	}
+
+	if *experimentName != "" {
+		uploadCmd := fmt.Sprintf("~/dropbox_uploader.sh tmp Drone-Project/broadcast/%s", *experimentName)
+		if err := exec.Command("bash", "-c", uploadCmd).Run(); err != nil {
+			panic(err)
+		}
 	}
 
 }
