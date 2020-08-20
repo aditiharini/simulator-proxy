@@ -11,42 +11,22 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	config "github.com/aditiharini/simulator-proxy/config/experiment"
 )
 
 // Only have drone to base station
 // Generate config that sets drone to drone links
-type FullyConnectedJson = map[string]string
 
-type ConfigEntry interface {
-}
-
-type DelayEntry struct {
-	EntryType   string `json:"type"`
-	DelayMillis int    `json:"delay"`
-}
-
-func NewDelayEntry(delayMillis int) DelayEntry {
-	return DelayEntry{EntryType: "delay", DelayMillis: delayMillis}
-}
-
-type TraceEntry struct {
-	EntryType string `json:"type"`
-	TraceFile string `json:"file"`
-}
-
-func NewTraceEntry(tracefile string) TraceEntry {
-	return TraceEntry{EntryType: "trace", TraceFile: tracefile}
-}
-
-func writeGeneralConfig(topology FullyConnectedJson, outputDir string) {
+func writeGeneralConfig(topology config.FullyConnectedJson, outputDir string) {
 	generalTopology := make(map[string](map[string]interface{}))
 	for strSrc, trace := range topology {
 		generalTopology[strSrc] = make(map[string]interface{})
-		generalTopology[strSrc]["base"] = NewTraceEntry(trace)
+		generalTopology[strSrc]["base"] = config.NewTraceEntry(trace)
 
 		for strDst, _ := range topology {
 			if strSrc != strDst {
-				generalTopology[strSrc][strDst] = NewDelayEntry(1)
+				generalTopology[strSrc][strDst] = config.NewDelayEntry(1)
 			}
 		}
 	}
@@ -67,11 +47,11 @@ func writeGeneralConfig(topology FullyConnectedJson, outputDir string) {
 	defer outFile.Close()
 }
 
-func writeLinkConfigs(topology FullyConnectedJson, outputDir string) {
+func writeLinkConfigs(topology config.FullyConnectedJson, outputDir string) {
 	for strSrc, trace := range topology {
 		generalTopology := make(map[string](map[string]interface{}))
 		generalTopology["0"] = make(map[string]interface{})
-		generalTopology["0"]["base"] = NewTraceEntry(trace)
+		generalTopology["0"]["base"] = config.NewTraceEntry(trace)
 
 		linkFile, err := os.Create(fmt.Sprintf("%s/%s.json", outputDir, strSrc))
 		if err != nil {
@@ -90,8 +70,8 @@ func writeLinkConfigs(topology FullyConnectedJson, outputDir string) {
 	}
 }
 
-func processConfig(filename string, fullDir string, linksDir string) {
-	var topology FullyConnectedJson
+func processConfig(filename string, fullDir string, linksDir string) config.Config {
+	var config config.Config
 	confFile, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -99,14 +79,14 @@ func processConfig(filename string, fullDir string, linksDir string) {
 
 	defer confFile.Close()
 
-	err = json.NewDecoder(confFile).Decode(&topology)
+	err = json.NewDecoder(confFile).Decode(&config)
 	if err != nil {
 		panic(err)
 	}
 
-	writeGeneralConfig(topology, fullDir)
-	writeLinkConfigs(topology, linksDir)
-
+	writeGeneralConfig(config.Simulator.Topology, fullDir)
+	writeLinkConfigs(config.Simulator.Topology, linksDir)
+	return config
 }
 
 func run(cmdStr string, tag string, printStdout bool, printStderr bool) *exec.Cmd {
@@ -149,17 +129,25 @@ func run(cmdStr string, tag string, printStdout bool, printStderr bool) *exec.Cm
 
 }
 
-func runSimulator(inputFile string, outputFile string) {
-	receiver := run("cd ../packet-receiver && mm-delay 1 ./packet-receiver -listen-on=100.64.0.2:8080", "RECV", false, true)
+func runSimulator(config config.Config, inputFile string, outputFile string) {
+	receiverCmd := fmt.Sprintf("cd ../packet-receiver && mm-delay 1 ./packet-receiver -listen-on=%s", config.Receiver.Address)
+	receiver := run(receiverCmd, "RECV", false, true)
 	time.Sleep(time.Second * time.Duration(1))
 
-	path := fmt.Sprintf("%s/%s", "../experiment", inputFile)
+	inpath := fmt.Sprintf("%s/%s", "../experiment", inputFile)
 	outpath := fmt.Sprintf("%s/%s", "../experiment", outputFile)
-	simCmd := fmt.Sprintf("cd ../simulator && sudo ./simulator -topology=%s > %s", path, outpath)
+	simCmd := fmt.Sprintf("cd ../simulator && sudo ./simulator -topology=%s > %s", inpath, outpath)
 	run(simCmd, "SIM", true, true)
 	time.Sleep(time.Second * time.Duration(1))
 
-	out, err := exec.Command("bash", "-c", "cd ../packet-sender && mm-delay 1 ./packet-sender -dest=100.64.0.2:8080 -count=5000 -size=1000 -wait=1").CombinedOutput()
+	senderCmd := fmt.Sprintf(
+		"cd ../packet-sender && mm-delay 1 ./packet-sender -dest=%s -count=%d -size=%d -wait=%d",
+		config.Receiver.Address,
+		config.Sender.Count,
+		config.Sender.Size,
+		config.Sender.Wait,
+	)
+	out, err := exec.Command("bash", "-c", senderCmd).CombinedOutput()
 	if err != nil {
 		fmt.Println(string(out))
 		panic(err)
@@ -196,7 +184,7 @@ func main() {
 	exec.Command("mkdir", "-p", "tmp/outputs/links").Run()
 	exec.Command("mkdir", "tmp/outputs/full").Run()
 	exec.Command("mkdir", "tmp/outputs/csv").Run()
-	processConfig(*fullyConnectedConfig, "tmp/inputs/full", "tmp/inputs/links")
+	config := processConfig(*fullyConnectedConfig, "tmp/inputs/full", "tmp/inputs/links")
 
 	linkFiles, err := ioutil.ReadDir("tmp/inputs/links")
 	if err != nil {
@@ -206,11 +194,11 @@ func main() {
 	for _, file := range linkFiles {
 		inpath := fmt.Sprintf("%s/%s", "tmp/inputs/links", file.Name())
 		outpath := fmt.Sprintf("%s/%s.log", "tmp/outputs/links", strings.Split(file.Name(), ".")[0])
-		runSimulator(inpath, outpath)
+		runSimulator(config, inpath, outpath)
 		time.Sleep(time.Second * time.Duration(1))
 	}
 
-	runSimulator("tmp/inputs/full/full.json", "tmp/outputs/full/full.log")
+	runSimulator(config, "tmp/inputs/full/full.json", "tmp/outputs/full/full.log")
 
 	linkLogs, err := ioutil.ReadDir("tmp/outputs/links")
 	var strLinkLogs []string

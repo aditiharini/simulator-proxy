@@ -9,13 +9,14 @@ import (
 	"strconv"
 	"time"
 
+	config "github.com/aditiharini/simulator-proxy/config/simulator"
 	. "github.com/aditiharini/simulator-proxy/simulation"
 	log "github.com/sirupsen/logrus"
 	"github.com/songgao/water"
 )
 
-func readConfig(filename string) Config {
-	var config Config
+func readConfig(filename string) config.Config {
+	var config config.Config
 	confFile, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -28,11 +29,8 @@ func readConfig(filename string) Config {
 	return config
 }
 
-// TODO(aditi): Make this easier to change. This is rigid and ugly
-type TopologyJson = map[string](map[string](map[string]interface{}))
-
-func parseTopologyConfig(filename string) TopologyJson {
-	var topology TopologyJson
+func parseTopologyConfig(filename string) config.TopologyJson {
+	var topology config.TopologyJson
 	confFile, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -47,7 +45,7 @@ func parseTopologyConfig(filename string) TopologyJson {
 // TODO(aditi) : Make this config parsing cleaner
 // It would be nice to automatically read into structs
 // instead of manually doing casting work
-func toLinkConfigs(rawTopology TopologyJson, simulatedDstAddress Address) []LinkConfig {
+func toLinkConfigs(rawTopology config.TopologyJson, simulatedDstAddress Address) []LinkConfig {
 	var linkConfigs []LinkConfig
 	for strSrc, linksByDst := range rawTopology {
 		src, err := strconv.Atoi(strSrc)
@@ -87,18 +85,6 @@ func toLinkConfigs(rawTopology TopologyJson, simulatedDstAddress Address) []Link
 	return linkConfigs
 }
 
-type Config struct {
-	RealSrcAddress      string `json:"realSrcAddress"`
-	SimulatedSrcAddress int    `json:"simulatedSrcAddress"`
-	SimulatedDstAddress int    `json:"simulatedDstAddress"`
-	MaxQueueLength      int    `json:"maxQueueLength"`
-	MaxHops             int    `json:"maxHops"`
-	DevName             string `json:"devName"`
-	DevSrcAddr          string `json:"devSrcAddr"`
-	DevDstAddr          string `json:"devDstAddr"`
-	RoutingTableNum     string `json:"routingTableNum"`
-}
-
 func main() {
 	log.SetFormatter(&log.JSONFormatter{
 		TimestampFormat: time.StampMicro,
@@ -107,7 +93,7 @@ func main() {
 	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
 	// starting any mahimahi instances or simulator.
 	// This will stop router advertisement messages.
-	configFile := flag.String("config", "../../config/global/default.json", "some global configuration params")
+	configFile := flag.String("config", "../../config/simulator/global/default.json", "some global configuration params")
 	topologyFile := flag.String("topology", "../../config/topology/default.json", "topology configuration")
 	flag.Parse()
 
