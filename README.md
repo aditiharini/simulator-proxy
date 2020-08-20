@@ -1,7 +1,11 @@
 # simulator-proxy
+Dependencies:
+- Put dropbox uploading script from https://github.com/andreafabrizi/Dropbox-Uploader in ~
+- Install https://github.com/ravinet/mahimahi
 
 Current plan:
-- Determine latency for each packet sent through proxy.
-- Measure latency over time for a link
-- Plot this information together to get a sense for whether each link is being utilized properly
+- try to push broadcast to the limit by increasing the number of drones
+- automate data collection and plotting process
+- randomize/offset traces so that all links aren't bad at the same time
+- implement some routing-based optimization to compare with broadcast
 
