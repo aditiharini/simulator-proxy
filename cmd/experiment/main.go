@@ -147,6 +147,10 @@ func runSimulator(config config.Config, inputFile string, outputFile string) {
 		config.Sender.Size,
 		config.Sender.Wait,
 	)
+	if config.Sender.Traffic == "bursty" {
+		senderCmd = fmt.Sprintf("%s -bursty -packetsPerBurst=%d", senderCmd, config.Sender.PacketsPerBurst)
+	}
+
 	out, err := exec.Command("bash", "-c", senderCmd).CombinedOutput()
 	if err != nil {
 		fmt.Println(string(out))

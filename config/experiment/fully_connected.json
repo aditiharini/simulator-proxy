@@ -1,5 +1,34 @@
 {
-    "0" : "/home/ubuntu/mahimahi/traces/TMobile-LTE-short.down",
-    "1" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-driving.down",
-    "2" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-short.down"
+    "sender" : {
+        "traffic" : "stable",
+        "count" : 5000,
+        "size" : 1000,
+        "wait" : 1,
+        "packetsPerBurst" : 100
+    },
+    "receiver" : {
+        "address" : "100.64.0.2:8080"
+    },
+    "simulator" : {
+        "topology" : {
+            "0" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-driving.up",
+            "1" : "/home/ubuntu/mahimahi/traces/TMobile-LTE-driving.up",
+            "2" : "/home/ubuntu/mahimahi/traces/ATT-LTE-driving.up",
+            "3" : "/home/ubuntu/mahimahi/traces/TMobile-LTE-short.up",
+            "4" : "/home/ubuntu/mahimahi/traces/ATT-LTE-driving-2016.up",
+            "5" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-short.up",
+            "6" : "/home/ubuntu/mahimahi/traces/Verizon-EVDO-driving.up"
+        },
+        "global" : {
+            "realSrcAddress" : "100.64.0.4",
+            "simulatedSrcAddress" : 0,
+            "simulatedDstAddress" : 999,
+            "maxQueueLength" : 5000,
+            "maxHops" : 2,
+            "devName" : "proxy",
+            "devSrcAddr" : "10.0.0.1",
+            "devDstAddr" : "10.0.0.2",
+            "routingTableNum" : "1"
+        }
+    }
 }
