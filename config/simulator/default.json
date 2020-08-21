@@ -1,0 +1,56 @@
+{
+    "realSrcAddress" : "100.64.0.4",
+    "simulatedSrcAddress" : 0,
+    "simulatedDstAddress" : 999,
+    "maxQueueLength" : 5000,
+    "maxHops" : 2,
+    "devName" : "proxy",
+    "devSrcAddr" : "10.0.0.1",
+    "devDstAddr" : "10.0.0.2",
+    "routingTableNum" : "1",
+    "topology": {
+        "0" : {
+            "1" : {
+                "type": "delay",
+                "delay" : 1
+            },
+            "2" : {
+                "type": "delay",
+                "delay" : 1
+            },
+            "base" : {
+                "type": "trace", 
+                "file" : "/home/ubuntu/mahimahi/traces/TMobile-LTE-short.down"
+            }
+        },
+        "1" : {
+            "0" : {
+                "type": "delay",
+                "delay" : 1
+            },
+            "2" : {
+                "type": "delay",
+                "delay" : 1
+            },
+            "base" : {
+                "type": "trace", 
+                "file" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-driving.down"
+            }
+        }, 
+        "2" : {
+            "0" : {
+                "type": "delay",
+                "delay" : 1
+            },
+            "1" : {
+                "type": "delay",
+                "delay" : 1
+            },
+            "base" : {
+                "type": "trace", 
+                "file" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-short.down"
+            }
+        }
+    
+    }
+}

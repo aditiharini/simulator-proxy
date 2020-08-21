@@ -1,9 +1,9 @@
 package config
 
 // TODO(aditi): Make this easier to change. This is rigid and ugly
-type TopologyJson = map[string](map[string](map[string]interface{}))
+type TopologyJson = map[string](map[string]interface{})
 
-type Config struct {
+type GeneralConfig struct {
 	RealSrcAddress      string `json:"realSrcAddress"`
 	SimulatedSrcAddress int    `json:"simulatedSrcAddress"`
 	SimulatedDstAddress int    `json:"simulatedDstAddress"`
@@ -13,4 +13,9 @@ type Config struct {
 	DevSrcAddr          string `json:"devSrcAddr"`
 	DevDstAddr          string `json:"devDstAddr"`
 	RoutingTableNum     string `json:"routingTableNum"`
+}
+
+type Config struct {
+	Topology TopologyJson  `json:"topology"`
+	General  GeneralConfig `json:"general"`
 }

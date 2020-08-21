@@ -8,13 +8,15 @@ import (
 
 type FullyConnectedJson = map[string]string
 
+type SimulatorConfig struct {
+	Topology FullyConnectedJson            `json:"topology"`
+	Global   simulatorConfig.GeneralConfig `json:"global"`
+}
+
 type Config struct {
 	Sender    senderConfig.Config   `json:"sender"`
 	Receiver  receiverConfig.Config `json:"receiver"`
-	Simulator struct {
-		Topology FullyConnectedJson     `json:"topology"`
-		Global   simulatorConfig.Config `json:"global"`
-	}
+	Simulator SimulatorConfig       `json:"simulator"`
 }
 
 // TODO(aditi): Having an empty interface like this is bad

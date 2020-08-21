@@ -13,24 +13,26 @@ import (
 	"time"
 
 	config "github.com/aditiharini/simulator-proxy/config/experiment"
+	simulatorConfig "github.com/aditiharini/simulator-proxy/config/simulator"
 )
 
 // Only have drone to base station
 // Generate config that sets drone to drone links
 
-func writeGeneralConfig(topology config.FullyConnectedJson, outputDir string) {
+func writeGeneralConfig(simConfig config.SimulatorConfig, outputDir string) {
 	generalTopology := make(map[string](map[string]interface{}))
-	for strSrc, trace := range topology {
+	for strSrc, trace := range simConfig.Topology {
 		generalTopology[strSrc] = make(map[string]interface{})
 		generalTopology[strSrc]["base"] = config.NewTraceEntry(trace)
 
-		for strDst, _ := range topology {
+		for strDst, _ := range simConfig.Topology {
 			if strSrc != strDst {
 				generalTopology[strSrc][strDst] = config.NewDelayEntry(1)
 			}
 		}
 	}
-	data, err := json.Marshal(generalTopology)
+	generalConfig := simulatorConfig.Config{Topology: generalTopology, General: simConfig.Global}
+	data, err := json.Marshal(generalConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -47,8 +49,8 @@ func writeGeneralConfig(topology config.FullyConnectedJson, outputDir string) {
 	defer outFile.Close()
 }
 
-func writeLinkConfigs(topology config.FullyConnectedJson, outputDir string) {
-	for strSrc, trace := range topology {
+func writeLinkConfigs(simConfig config.SimulatorConfig, outputDir string) {
+	for strSrc, trace := range simConfig.Topology {
 		generalTopology := make(map[string](map[string]interface{}))
 		generalTopology["0"] = make(map[string]interface{})
 		generalTopology["0"]["base"] = config.NewTraceEntry(trace)
@@ -57,7 +59,8 @@ func writeLinkConfigs(topology config.FullyConnectedJson, outputDir string) {
 		if err != nil {
 			panic(err)
 		}
-		data, err := json.Marshal(generalTopology)
+		generalConfig := simulatorConfig.Config{Topology: generalTopology, General: simConfig.Global}
+		data, err := json.Marshal(generalConfig)
 		if err != nil {
 			panic(err)
 		}
@@ -84,8 +87,8 @@ func processConfig(filename string, fullDir string, linksDir string) config.Conf
 		panic(err)
 	}
 
-	writeGeneralConfig(config.Simulator.Topology, fullDir)
-	writeLinkConfigs(config.Simulator.Topology, linksDir)
+	writeGeneralConfig(config.Simulator, fullDir)
+	writeLinkConfigs(config.Simulator, linksDir)
 	return config
 }
 
@@ -136,7 +139,7 @@ func runSimulator(config config.Config, inputFile string, outputFile string) {
 
 	inpath := fmt.Sprintf("%s/%s", "../experiment", inputFile)
 	outpath := fmt.Sprintf("%s/%s", "../experiment", outputFile)
-	simCmd := fmt.Sprintf("cd ../simulator && sudo ./simulator -topology=%s > %s", inpath, outpath)
+	simCmd := fmt.Sprintf("cd ../simulator && sudo ./simulator -config=%s > %s", inpath, outpath)
 	run(simCmd, "SIM", true, true)
 	time.Sleep(time.Second * time.Duration(1))
 
@@ -177,7 +180,7 @@ func main() {
 	// Store experiment results in dropbox
 
 	// Need to be able to generate traces in the future
-	fullyConnectedConfig := flag.String("topology", "", "fully connected config")
+	fullyConnectedConfig := flag.String("config", "", "fully connected config")
 	experimentName := flag.String("experimentName", "", "name to upload experiment with")
 	flag.Parse()
 

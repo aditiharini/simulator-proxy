@@ -29,19 +29,6 @@ func readConfig(filename string) config.Config {
 	return config
 }
 
-func parseTopologyConfig(filename string) config.TopologyJson {
-	var topology config.TopologyJson
-	confFile, err := os.Open(filename)
-	if err != nil {
-		panic(err)
-	}
-	err = json.NewDecoder(confFile).Decode(&topology)
-	if err != nil {
-		panic(err)
-	}
-	return topology
-}
-
 // TODO(aditi) : Make this config parsing cleaner
 // It would be nice to automatically read into structs
 // instead of manually doing casting work
@@ -64,15 +51,16 @@ func toLinkConfigs(rawTopology config.TopologyJson, simulatedDstAddress Address)
 			}
 
 			var newLinkConfig LinkConfig
-			if linkInfo["type"] == "delay" {
+			linkInfoMap := linkInfo.(map[string]interface{})
+			if linkInfoMap["type"] == "delay" {
 				newLinkConfig = NewDelayLinkConfig(
-					time.Millisecond*time.Duration(linkInfo["delay"].(float64)),
+					time.Millisecond*time.Duration(linkInfoMap["delay"].(float64)),
 					src,
 					dst,
 				)
-			} else if linkInfo["type"] == "trace" {
+			} else if linkInfoMap["type"] == "trace" {
 				newLinkConfig = NewTraceLinkConfig(
-					linkInfo["file"].(string),
+					linkInfoMap["file"].(string),
 					src,
 					dst,
 				)
@@ -94,33 +82,31 @@ func main() {
 	// starting any mahimahi instances or simulator.
 	// This will stop router advertisement messages.
 	configFile := flag.String("config", "../../config/simulator/global/default.json", "some global configuration params")
-	topologyFile := flag.String("topology", "../../config/topology/default.json", "topology configuration")
 	flag.Parse()
 
 	config := readConfig(*configFile)
-	topology := parseTopologyConfig(*topologyFile)
 	devConfig := water.Config{
 		DeviceType: water.TUN,
 	}
-	devConfig.Name = config.DevName
+	devConfig.Name = config.General.DevName
 	dev, err := water.New(devConfig)
 
 	if err != nil {
 		panic(err)
 	}
 
-	exec.Command("ip", "rule", "delete", "table", config.RoutingTableNum).Run()
+	exec.Command("ip", "rule", "delete", "table", config.General.RoutingTableNum).Run()
 	exec.Command("ip", "link", "set", "dev", dev.Name(), "up").Run()
-	exec.Command("ip", "addr", "add", config.DevSrcAddr, "dev", dev.Name()).Run()
-	exec.Command("ip", "rule", "add", "from", config.RealSrcAddress, "table", config.RoutingTableNum).Run()
-	exec.Command("ifconfig", dev.Name(), config.DevSrcAddr, "dstaddr", config.DevDstAddr).Run()
-	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.RoutingTableNum).Run()
+	exec.Command("ip", "addr", "add", config.General.DevSrcAddr, "dev", dev.Name()).Run()
+	exec.Command("ip", "rule", "add", "from", config.General.RealSrcAddress, "table", config.General.RoutingTableNum).Run()
+	exec.Command("ifconfig", dev.Name(), config.General.DevSrcAddr, "dstaddr", config.General.DevDstAddr).Run()
+	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.General.RoutingTableNum).Run()
 
-	sim := NewBroadcastSimulator(config.SimulatedDstAddress, dev, net.ParseIP(config.DevDstAddr))
-	linkConfigs := toLinkConfigs(topology, config.SimulatedDstAddress)
+	sim := NewBroadcastSimulator(config.General.SimulatedDstAddress, dev, net.ParseIP(config.General.DevDstAddr))
+	linkConfigs := toLinkConfigs(config.Topology, config.General.SimulatedDstAddress)
 
 	// Start all link emulation and start receiving/sending packets
-	sim.Start(linkConfigs, config.MaxQueueLength)
+	sim.Start(linkConfigs, config.General.MaxQueueLength)
 
 	id := 0
 	for {
@@ -136,14 +122,14 @@ func main() {
 		packetData := packetBuf[:n]
 
 		packet := Packet{
-			Src:         config.SimulatedSrcAddress,
-			HopsLeft:    config.MaxHops,
+			Src:         config.General.SimulatedSrcAddress,
+			HopsLeft:    config.General.MaxHops,
 			Data:        packetData,
 			ArrivalTime: time.Now(),
 			Id:          id,
 		}
 		id++
-		sim.BroadcastPacket(packet, config.SimulatedSrcAddress)
+		sim.BroadcastPacket(packet, config.General.SimulatedSrcAddress)
 	}
 
 }

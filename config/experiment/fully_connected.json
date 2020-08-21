@@ -1,6 +1,6 @@
 {
     "sender" : {
-        "traffic" : "stable",
+        "traffic" : "bursty",
         "count" : 5000,
         "size" : 1000,
         "wait" : 1,
