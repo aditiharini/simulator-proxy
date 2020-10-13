@@ -102,13 +102,15 @@ func main() {
 	exec.Command("ifconfig", dev.Name(), config.General.DevSrcAddr, "dstaddr", config.General.DevDstAddr).Run()
 	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.General.RoutingTableNum).Run()
 
-	sim := NewBroadcastSimulator(config.General.SimulatedDstAddress, dev, net.ParseIP(config.General.DevDstAddr))
+	sim := NewSimulator(config.General.SimulatedDstAddress, dev, net.ParseIP(config.General.DevDstAddr))
 	linkConfigs := toLinkConfigs(config.Topology, config.General.SimulatedDstAddress)
 
 	// Start all link emulation and start receiving/sending packets
+	sim.SetRouter(NewBroadcastSimulator(linkConfigs))
 	sim.Start(linkConfigs, config.General.MaxQueueLength)
 
 	id := 0
+	newPacketLink := NewDelayLinkConfig(0, -1, config.General.SimulatedSrcAddress).ToLinkEmulator(config.General.MaxQueueLength)
 	for {
 		packetBuf := make([]byte, 2000)
 		n, err := dev.Read(packetBuf)
@@ -129,7 +131,7 @@ func main() {
 			Id:          id,
 		}
 		id++
-		sim.BroadcastPacket(packet, config.General.SimulatedSrcAddress)
+		newPacketLink.WriteIncomingPacket(packet)
 	}
 
 }

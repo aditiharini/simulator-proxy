@@ -20,3 +20,9 @@ type LinkEmulator interface {
 	SrcAddr() Address
 	DstAddr() Address
 }
+
+type RoutingSimulator interface {
+	OnIncomingPacket(src Address, dst Address)
+	OnOutgoingPacket(src Address, dst Address)
+	RouteTo(packet Packet, outgoingAddr Address) []Address
+}
