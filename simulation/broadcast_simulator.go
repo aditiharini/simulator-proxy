@@ -8,7 +8,9 @@ func NewBroadcastSimulator(linkConfigs []LinkConfig) *BroadcastSimulator {
 	neighborMap := make(map[Address][]Address)
 	for _, linkConfig := range linkConfigs {
 		srcAddr := linkConfig.SrcAddr()
-		// TODO(aditi): add empty check
+		if _, ok := neighborMap[srcAddr]; !ok {
+			neighborMap[srcAddr] = make([]Address, 0)
+		}
 		neighbors := neighborMap[srcAddr]
 		neighborMap[srcAddr] = append(neighbors, linkConfig.DstAddr())
 	}

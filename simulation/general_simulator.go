@@ -59,6 +59,7 @@ func (s *BaseSimulator) ProcessIncomingPackets() {
 			go func(e LinkEmulator) {
 				for {
 					// Apply emulation to packet as soon as it's received
+					s.router.OnIncomingPacket(e.SrcAddr(), e.DstAddr())
 					e.ApplyEmulation()
 				}
 			}(emulator)
@@ -116,29 +117,37 @@ func (s *BaseSimulator) writeToDestination(p Packet) {
 	}
 }
 
+func (s *BaseSimulator) routePacket(packet Packet, srcAddr Address) {
+	dstAddrs := s.router.RouteTo(packet, srcAddr)
+	packet.Src = srcAddr
+	for _, dstAddr := range dstAddrs {
+		packet.Dst = dstAddr
+		packet.ArrivalTime = time.Now()
+		emulator := s.queues[srcAddr][dstAddr]
+		emulator.WriteIncomingPacket(packet)
+	}
+}
+
 func (s *BaseSimulator) ProcessOutgoingPackets() {
 	for _, emulatorList := range s.queues {
 		for _, emulator := range emulatorList {
 			go func(e LinkEmulator) {
 				for {
 					packet := e.ReadOutgoingPacket()
+					s.router.OnOutgoingPacket(e.SrcAddr(), e.DstAddr())
 					// If the emulation is complete for the "real dest", we can send it out on the real device
 					if e.DstAddr() == s.realDest {
 						s.writeToDestination(packet)
 					} else if packet.HopsLeft > 0 {
-						srcAddr := e.DstAddr()
-						dstAddrs := s.router.RouteTo(packet, srcAddr)
 						packet.HopsLeft--
-						packet.Src = srcAddr
-						for _, dstAddr := range dstAddrs {
-							packet.Dst = dstAddr
-							packet.ArrivalTime = time.Now()
-							emulator := s.queues[srcAddr][dstAddr]
-							emulator.WriteIncomingPacket(packet)
-						}
+						s.routePacket(packet, e.DstAddr())
 					}
 				}
 			}(emulator)
 		}
 	}
+}
+
+func (s *BaseSimulator) WriteNewPacket(packet Packet, source Address) {
+	s.routePacket(packet, source)
 }

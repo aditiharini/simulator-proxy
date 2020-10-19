@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -81,7 +82,7 @@ func main() {
 	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
 	// starting any mahimahi instances or simulator.
 	// This will stop router advertisement messages.
-	configFile := flag.String("config", "../../config/simulator/global/default.json", "some global configuration params")
+	configFile := flag.String("config", "../../config/simulator/default.json", "some global configuration params")
 	flag.Parse()
 
 	config := readConfig(*configFile)
@@ -95,22 +96,39 @@ func main() {
 		panic(err)
 	}
 
-	exec.Command("ip", "rule", "delete", "table", config.General.RoutingTableNum).Run()
-	exec.Command("ip", "link", "set", "dev", dev.Name(), "up").Run()
-	exec.Command("ip", "addr", "add", config.General.DevSrcAddr, "dev", dev.Name()).Run()
-	exec.Command("ip", "rule", "add", "from", config.General.RealSrcAddress, "table", config.General.RoutingTableNum).Run()
-	exec.Command("ifconfig", dev.Name(), config.General.DevSrcAddr, "dstaddr", config.General.DevDstAddr).Run()
-	exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.General.RoutingTableNum).Run()
+	if err := exec.Command("ip", "rule", "delete", "table", config.General.RoutingTableNum).Run(); err != nil {
+		fmt.Println("No iptable deleted")
+	}
+	if err := exec.Command("ip", "link", "set", "dev", dev.Name(), "up").Run(); err != nil {
+		fmt.Println("Cmd: ", "ip link set dev", dev.Name(), "up")
+		panic(err)
+	}
+	if err := exec.Command("ip", "addr", "add", config.General.DevSrcAddr, "dev", dev.Name()).Run(); err != nil {
+		fmt.Println("Cmd: ", "ip addr add", config.General.DevSrcAddr, "dev", dev.Name())
+		panic(err)
+	}
+	if err := exec.Command("ip", "rule", "add", "from", config.General.RealSrcAddress, "table", config.General.RoutingTableNum).Run(); err != nil {
+		fmt.Println("Cmd: ", "ip rule add from", config.General.RealSrcAddress, "table", config.General.RoutingTableNum)
+		panic(err)
+	}
+	if err := exec.Command("ifconfig", dev.Name(), config.General.DevSrcAddr, "dstaddr", config.General.DevDstAddr).Run(); err != nil {
+		fmt.Println("Cmd: ", "ifconfig", dev.Name(), config.General.DevSrcAddr, "dstaddr", config.General.DevDstAddr)
+		panic(err)
+	}
+	if err := exec.Command("ip", "route", "add", "default", "dev", dev.Name(), "table", config.General.RoutingTableNum).Run(); err != nil {
+		fmt.Println("Cmd: ", "ip route add default dev", dev.Name(), "table", config.General.RoutingTableNum)
+		panic(err)
+	}
 
 	sim := NewSimulator(config.General.SimulatedDstAddress, dev, net.ParseIP(config.General.DevDstAddr))
 	linkConfigs := toLinkConfigs(config.Topology, config.General.SimulatedDstAddress)
 
 	// Start all link emulation and start receiving/sending packets
-	sim.SetRouter(NewBroadcastSimulator(linkConfigs))
+	// sim.SetRouter(NewBroadcastSimulator(linkConfigs))
+	sim.SetRouter(NewBestNeighborSimulator(linkConfigs, config.General.SimulatedDstAddress))
 	sim.Start(linkConfigs, config.General.MaxQueueLength)
 
 	id := 0
-	newPacketLink := NewDelayLinkConfig(0, -1, config.General.SimulatedSrcAddress).ToLinkEmulator(config.General.MaxQueueLength)
 	for {
 		packetBuf := make([]byte, 2000)
 		n, err := dev.Read(packetBuf)
@@ -131,7 +149,7 @@ func main() {
 			Id:          id,
 		}
 		id++
-		newPacketLink.WriteIncomingPacket(packet)
+		sim.WriteNewPacket(packet, packet.Src)
 	}
 
 }

@@ -1,56 +1,57 @@
 {
-    "realSrcAddress" : "100.64.0.4",
-    "simulatedSrcAddress" : 0,
-    "simulatedDstAddress" : 999,
-    "maxQueueLength" : 5000,
-    "maxHops" : 2,
-    "devName" : "proxy",
-    "devSrcAddr" : "10.0.0.1",
-    "devDstAddr" : "10.0.0.2",
-    "routingTableNum" : "1",
-    "topology": {
+    "topology" : {
         "0" : {
-            "1" : {
+            "1": {
                 "type": "delay",
-                "delay" : 1
+                "delay": 1
             },
-            "2" : {
+            "2": {
                 "type": "delay",
-                "delay" : 1
+                "delay": 1
             },
             "base" : {
-                "type": "trace", 
-                "file" : "/home/ubuntu/mahimahi/traces/TMobile-LTE-short.down"
+                "type": "trace",
+                "file": "/home/ubuntu/data/multisend/sender/trace-analysis/uplink-1599172612.pps"
             }
         },
         "1" : {
-            "0" : {
+            "0": {
                 "type": "delay",
-                "delay" : 1
+                "delay": 1
             },
-            "2" : {
+            "2": {
                 "type": "delay",
-                "delay" : 1
+                "delay": 1
             },
             "base" : {
                 "type": "trace", 
-                "file" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-driving.down"
+                "file": "/home/ubuntu/data/multisend/sender/trace-analysis/uplink-1599172792.pps"
             }
-        }, 
+        },
         "2" : {
-            "0" : {
+            "0": {
                 "type": "delay",
-                "delay" : 1
+                "delay": 1
             },
-            "1" : {
+            "1": {
                 "type": "delay",
-                "delay" : 1
+                "delay": 1
             },
             "base" : {
                 "type": "trace", 
-                "file" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-short.down"
+                "file": "/home/ubuntu/data/multisend/sender/trace-analysis/uplink-1599172883.pps"
             }
         }
-    
+    },
+    "general" : {
+        "realSrcAddress" : "100.64.0.4",
+        "simulatedSrcAddress" : 0,
+        "simulatedDstAddress" : 999,
+        "maxQueueLength" : 5000,
+        "maxHops" : 2,
+        "devName" : "proxy",
+        "devSrcAddr" : "10.0.0.1",
+        "devDstAddr" : "10.0.0.2",
+        "routingTableNum" : "1"
     }
 }

@@ -4,10 +4,6 @@ import (
 	"time"
 )
 
-type NeighborState struct {
-	latestLatency int
-}
-
 type SelfState struct {
 	latestLatency time.Duration
 	latestArrival time.Time
@@ -15,47 +11,65 @@ type SelfState struct {
 
 type BestNeighborSimulator struct {
 	// For each drone maintain map to measurement information for all neighbors
-	neighborState map[Address]map[Address]NeighborState
-	selfState     map[Address]SelfState
+	selfState map[Address]SelfState
+	neighbors map[Address][]Address
+	realDest  int
 }
 
-type MeasurementPacket struct {
-	Packet
-	measurement SelfState
-}
-
-func NewBestNeighborSimulator(linkConfigs []LinkConfig) BestNeighborSimulator {
-	neighborState := make(map[Address]map[Address]NeighborState)
+func NewBestNeighborSimulator(linkConfigs []LinkConfig, realDest Address) *BestNeighborSimulator {
 	selfState := make(map[Address]SelfState)
+	neighbors := make(map[Address][]Address)
 	for _, linkConfig := range linkConfigs {
 		srcAddr := linkConfig.SrcAddr()
 		dstAddr := linkConfig.DstAddr()
-		// TODO(aditi): Add empty check
-		neighborState[srcAddr][dstAddr] = NeighborState{}
-		selfState[srcAddr] = SelfState{}
-		selfState[dstAddr] = SelfState{}
+		if _, ok := selfState[srcAddr]; !ok {
+			selfState[srcAddr] = SelfState{latestLatency: 0}
+		}
+		if _, ok := selfState[dstAddr]; !ok {
+			selfState[dstAddr] = SelfState{latestLatency: 0}
+		}
+		if _, ok := neighbors[srcAddr]; !ok {
+			neighbors[srcAddr] = make([]Address, 0)
+		}
+		if dstAddr != realDest {
+			srcNeighbors := neighbors[srcAddr]
+			srcNeighbors = append(srcNeighbors, dstAddr)
+			neighbors[srcAddr] = srcNeighbors
+		}
 	}
-	return BestNeighborSimulator{
-		neighborState: neighborState,
-		selfState:     selfState,
+	return &BestNeighborSimulator{
+		selfState: selfState,
+		neighbors: neighbors,
+		realDest:  realDest,
 	}
 }
 
 func (s *BestNeighborSimulator) OnIncomingPacket(src Address, dst Address) {
+	if dst == s.realDest {
+		state := s.selfState[src]
+		state.latestArrival = time.Now()
+		s.selfState[src] = state
+	}
 }
 
 func (s *BestNeighborSimulator) OnOutgoingPacket(src Address, dst Address) {
-
+	if dst == s.realDest {
+		state := s.selfState[src]
+		state.latestLatency = time.Since(state.latestArrival)
+		s.selfState[src] = state
+	}
 }
 
 func (s *BestNeighborSimulator) RouteTo(packet Packet, outgoingAddr Address) []Address {
-	lowestLatency := -1
+	// TODO(aditi): replace with better version of max int
+	lowestLatency := 10000 * time.Second
 	bestNeighbor := -1
-	for neighbor, measurement := range s.neighborState[outgoingAddr] {
-		if lowestLatency == -1 || measurement.latestLatency > lowestLatency {
+	for _, addr := range s.neighbors[outgoingAddr] {
+		measurement := s.selfState[addr]
+		if lowestLatency == -1 || measurement.latestLatency < lowestLatency {
 			lowestLatency = measurement.latestLatency
-			bestNeighbor = neighbor
+			bestNeighbor = addr
 		}
 	}
-	return []Address{bestNeighbor}
+	return []Address{bestNeighbor, s.realDest}
 }
