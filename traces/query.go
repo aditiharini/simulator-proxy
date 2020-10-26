@@ -20,21 +20,21 @@ type SingleOutputQuery interface {
 }
 
 type RangeQuery struct {
-	input            SingleOutputQuery
-	startMilliOffset int
-	length           int
-	outfile          string
+	Input            SingleOutputQuery
+	StartMilliOffset int
+	Length           int
+	Output           string
 }
 
 func (rq RangeQuery) Execute() {
-	rq.input.Execute()
-	rawTrace, err := os.Open(rq.input.Outfile())
+	rq.Input.Execute()
+	rawTrace, err := os.Open(rq.Input.Outfile())
 	if err != nil {
 		panic(err)
 	}
 	defer rawTrace.Close()
 	rawTraceScanner := bufio.NewScanner(rawTrace)
-	processedTraceFile, err := os.Create(rq.outfile)
+	processedTraceFile, err := os.Create(rq.Output)
 	if err != nil {
 		panic(err)
 	}
@@ -46,30 +46,30 @@ func (rq RangeQuery) Execute() {
 		if err != nil {
 			panic(err)
 		}
-		if offset >= rq.startMilliOffset && offset < rq.startMilliOffset+rq.length {
-			newOffset := offset - rq.startMilliOffset
+		if offset >= rq.StartMilliOffset && offset < rq.StartMilliOffset+rq.Length {
+			newOffset := offset - rq.StartMilliOffset
 			processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
 		}
 	}
 }
 
 func (rq RangeQuery) Outfile() string {
-	return rq.outfile
+	return rq.Output
 }
 
 func (rq RangeQuery) Outfiles() []string {
-	return []string{rq.outfile}
+	return []string{rq.Output}
 }
 
 type SegmentQuery struct {
-	input       SingleOutputQuery
-	numSegments int
-	outfiles    []string
+	Input       SingleOutputQuery
+	NumSegments int
+	Output      []string
 }
 
 func (sq SegmentQuery) Execute() {
-	sq.input.Execute()
-	rawTrace, err := os.Open(sq.input.Outfile())
+	sq.Input.Execute()
+	rawTrace, err := os.Open(sq.Input.Outfile())
 	if err != nil {
 		panic(err)
 	}
@@ -88,9 +88,9 @@ func (sq SegmentQuery) Execute() {
 		panic(err)
 	}
 
-	durationPerSegment := duration / sq.numSegments
+	durationPerSegment := duration / sq.NumSegments
 	rawTraceScanner = bufio.NewScanner(rawTrace)
-	processedTraceFile, err := os.Create(sq.outfiles[0])
+	processedTraceFile, err := os.Create(sq.Output[0])
 	if err != nil {
 		panic(err)
 	}
@@ -104,7 +104,7 @@ func (sq SegmentQuery) Execute() {
 			panic(err)
 		}
 		if offset > (currentSegmentNumber+1)*durationPerSegment {
-			processedTraceFile, err = os.Create(sq.outfiles[currentSegmentNumber])
+			processedTraceFile, err = os.Create(sq.Output[currentSegmentNumber])
 			if err != nil {
 				panic(err)
 			}
@@ -119,41 +119,42 @@ func (sq SegmentQuery) Execute() {
 }
 
 func (sq SegmentQuery) Outfiles() []string {
-	return sq.outfiles
+	return sq.Output
 }
 
 type FullFileQuery struct {
-	batchname string
-	outfile   string
+	Batchname string
+	Tracename string
+	Output    string
 }
 
 func (fq FullFileQuery) Execute() {
-	if err := exec.Command("dropbox_uploader.sh", "download", GetRemoteTracePath(fq.batchname), fq.outfile); err != nil {
+	if err := exec.Command("dropbox_uploader.sh", "download", GetRemoteTracePath(fq.Batchname, fq.Tracename), fq.Output).Run(); err != nil {
 		panic(err)
 	}
 }
 
 func (fq FullFileQuery) Outfile() string {
-	return fq.outfile
+	return fq.Output
 }
 
 func (fq FullFileQuery) Outfiles() []string {
-	return []string{fq.outfile}
+	return []string{fq.Output}
 }
 
 type StitchQuery struct {
-	inputs  []Query
-	outfile string
+	Inputs []Query
+	Output string
 }
 
 func (sq StitchQuery) Execute() {
 	var allInputs []string
-	for _, input := range sq.inputs {
+	for _, input := range sq.Inputs {
 		input.Execute()
 		allInputs = append(allInputs, input.Outfiles()...)
 	}
 
-	processedTraceFile, err := os.Create(sq.outfile)
+	processedTraceFile, err := os.Create(sq.Output)
 	if err != nil {
 		panic(err)
 	}
@@ -184,13 +185,13 @@ func (sq StitchQuery) Execute() {
 }
 
 func (sq StitchQuery) Outfile() string {
-	return sq.outfile
+	return sq.Output
 }
 
 func (sq StitchQuery) Outfiles() []string {
-	return []string{sq.outfile}
+	return []string{sq.Output}
 }
 
-func GetRemoteTracePath(batchName string) string {
-	return fmt.Sprintf("~/Drone-Project/measurements/iperf_traces/%s/processed/traces/", batchName)
+func GetRemoteTracePath(batchName string, traceName string) string {
+	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/processed/traces/%s", batchName, traceName)
 }
