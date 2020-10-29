@@ -9,6 +9,21 @@ import (
 	"strconv"
 )
 
+func CreateScratchSpace() string {
+	scratchDir := "scratch"
+	if err := os.MkdirAll(scratchDir, os.ModePerm); err != nil {
+		panic(err)
+	}
+	return scratchDir
+}
+
+func RemoveScratchSpace() {
+	scratchDir := "scratch"
+	if err := os.RemoveAll(scratchDir); err != nil {
+		panic(err)
+	}
+}
+
 type Query interface {
 	Execute()
 	Outfiles() []string
@@ -32,15 +47,16 @@ func (rq RangeQuery) Execute() {
 	if err != nil {
 		panic(err)
 	}
-	defer rawTrace.Close()
 	rawTraceScanner := bufio.NewScanner(rawTrace)
-	processedTraceFile, err := os.Create(rq.Output)
+
+	scratchDir := CreateScratchSpace()
+	processedTraceTmp := fmt.Sprintf("%s/%s", scratchDir, rq.Output)
+	processedTraceFile, err := os.Create(processedTraceTmp)
 	if err != nil {
 		panic(err)
 	}
-	defer processedTraceFile.Close()
+
 	processedTraceWriter := bufio.NewWriter(processedTraceFile)
-	defer processedTraceWriter.Flush()
 	for rawTraceScanner.Scan() {
 		offset, err := strconv.Atoi(rawTraceScanner.Text())
 		if err != nil {
@@ -51,6 +67,19 @@ func (rq RangeQuery) Execute() {
 			processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
 		}
 	}
+	if err := rawTrace.Close(); err != nil {
+		panic(err)
+	}
+	if err := processedTraceWriter.Flush(); err != nil {
+		panic(err)
+	}
+	if err := processedTraceFile.Close(); err != nil {
+		panic(err)
+	}
+	if err := os.Rename(processedTraceTmp, rq.Output); err != nil {
+		panic(err)
+	}
+	RemoveScratchSpace()
 }
 
 func (rq RangeQuery) Outfile() string {
@@ -90,32 +119,45 @@ func (sq SegmentQuery) Execute() {
 
 	durationPerSegment := duration / sq.NumSegments
 	rawTraceScanner = bufio.NewScanner(rawTrace)
+	scratchDir := CreateScratchSpace()
+	if err := os.Chdir(scratchDir); err != nil {
+		panic(err)
+	}
 	processedTraceFile, err := os.Create(sq.Output[0])
 	if err != nil {
 		panic(err)
 	}
-	defer processedTraceFile.Close()
 	processedTraceWriter := bufio.NewWriter(processedTraceFile)
-	defer processedTraceWriter.Flush()
-	currentSegmentNumber := 0
+	nextSegmentNumber := 1
 	for rawTraceScanner.Scan() {
 		offset, err := strconv.Atoi(rawTraceScanner.Text())
 		if err != nil {
 			panic(err)
 		}
-		if offset > (currentSegmentNumber+1)*durationPerSegment {
-			processedTraceFile, err = os.Create(sq.Output[currentSegmentNumber])
+		if nextSegmentNumber < sq.NumSegments && offset > nextSegmentNumber*durationPerSegment {
+			processedTraceWriter.Flush()
+			processedTraceFile.Close()
+			processedTraceFile, err = os.Create(sq.Output[nextSegmentNumber])
 			if err != nil {
 				panic(err)
 			}
-			defer processedTraceFile.Close()
 			processedTraceWriter = bufio.NewWriter(processedTraceFile)
-			defer processedTraceWriter.Flush()
-			currentSegmentNumber++
+			nextSegmentNumber++
 		}
-		newOffset := offset - (currentSegmentNumber * durationPerSegment)
+		newOffset := offset - ((nextSegmentNumber - 1) * durationPerSegment)
 		processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
 	}
+	processedTraceWriter.Flush()
+	processedTraceFile.Close()
+	if err := os.Chdir(".."); err != nil {
+		panic(err)
+	}
+	for _, output := range sq.Output {
+		if err := os.Rename(fmt.Sprintf("%s/%s", scratchDir, output), output); err != nil {
+			panic(err)
+		}
+	}
+	RemoveScratchSpace()
 }
 
 func (sq SegmentQuery) Outfiles() []string {
