@@ -76,6 +76,9 @@ func (rq RangeQuery) Execute() {
 	if err := processedTraceFile.Close(); err != nil {
 		panic(err)
 	}
+	if err := os.Remove(rq.Input.Outfile()); err != nil {
+		panic(err)
+	}
 	if err := os.Rename(processedTraceTmp, rq.Output); err != nil {
 		panic(err)
 	}
@@ -152,6 +155,9 @@ func (sq SegmentQuery) Execute() {
 	if err := os.Chdir(".."); err != nil {
 		panic(err)
 	}
+	if err := os.Remove(sq.Input.Outfile()); err != nil {
+		panic(err)
+	}
 	for _, output := range sq.Output {
 		if err := os.Rename(fmt.Sprintf("%s/%s", scratchDir, output), output); err != nil {
 			panic(err)
@@ -196,7 +202,8 @@ func (sq StitchQuery) Execute() {
 		allInputs = append(allInputs, input.Outfiles()...)
 	}
 
-	processedTraceFile, err := os.Create(sq.Output)
+	scratchDir := CreateScratchSpace()
+	processedTraceFile, err := os.Create(fmt.Sprintf("%s/%s", scratchDir, sq.Output))
 	if err != nil {
 		panic(err)
 	}
@@ -224,6 +231,16 @@ func (sq StitchQuery) Execute() {
 		}
 		lastOffset = curOffset
 	}
+
+	for _, input := range allInputs {
+		if err := os.Remove(input); err != nil {
+			panic(err)
+		}
+	}
+	if err := os.Rename(fmt.Sprintf("%s/%s", scratchDir, sq.Output), sq.Output); err != nil {
+		panic(err)
+	}
+	RemoveScratchSpace()
 }
 
 func (sq StitchQuery) Outfile() string {
