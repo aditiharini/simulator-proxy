@@ -124,8 +124,11 @@ func main() {
 	linkConfigs := toLinkConfigs(config.Topology, config.General.SimulatedDstAddress)
 
 	// Start all link emulation and start receiving/sending packets
-	// sim.SetRouter(NewBroadcastSimulator(linkConfigs))
-	sim.SetRouter(NewBestNeighborSimulator(linkConfigs, config.General.SimulatedDstAddress))
+	if config.General.RoutingAlgorithm == "broadcast" {
+		sim.SetRouter(NewBroadcastSimulator(linkConfigs))
+	} else if config.General.RoutingAlgorithm == "best_neighbor" {
+		sim.SetRouter(NewBestNeighborSimulator(linkConfigs, config.General.SimulatedDstAddress))
+	}
 	sim.Start(linkConfigs, config.General.MaxQueueLength)
 
 	id := 0

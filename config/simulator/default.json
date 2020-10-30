@@ -52,6 +52,7 @@
         "devName" : "proxy",
         "devSrcAddr" : "10.0.0.1",
         "devDstAddr" : "10.0.0.2",
-        "routingTableNum" : "1"
+        "routingTableNum" : "1",
+        "routingAlgorithm": "broadcast"
     }
 }

@@ -13,6 +13,7 @@ type GeneralConfig struct {
 	DevSrcAddr          string `json:"devSrcAddr"`
 	DevDstAddr          string `json:"devDstAddr"`
 	RoutingTableNum     string `json:"routingTableNum"`
+	RoutingAlgorithm    string `json:"routingAlgorithm"`
 }
 
 type Config struct {
