@@ -11,13 +11,8 @@
     },
     "simulator" : {
         "topology" : {
-            "0" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-driving.up",
-            "1" : "/home/ubuntu/mahimahi/traces/TMobile-LTE-driving.up",
-            "2" : "/home/ubuntu/mahimahi/traces/ATT-LTE-driving.up",
-            "3" : "/home/ubuntu/mahimahi/traces/TMobile-LTE-short.up",
-            "4" : "/home/ubuntu/mahimahi/traces/ATT-LTE-driving-2016.up",
-            "5" : "/home/ubuntu/mahimahi/traces/Verizon-LTE-short.up",
-            "6" : "/home/ubuntu/mahimahi/traces/Verizon-EVDO-driving.up"
+            "0" : "data/trace-2.pps",
+            "1" : "data/trace-3.pps"
         },
         "global" : {
             "realSrcAddress" : "100.64.0.4",
@@ -30,5 +25,22 @@
             "devDstAddr" : "10.0.0.2",
             "routingTableNum" : "1"
         }
+    },
+    "query": {
+        "type":"segment" ,
+        "input": {
+            "type":"range",
+            "input": {
+                "type":"full_file",
+                "batch":"home-10-18-2",
+                "trace":"uplink-1.pps",
+                "output":"trace-1.pps"
+            },
+            "start":1000,
+            "length":60000,
+            "output":"trace-1.pps"
+        },
+        "segments":2,
+        "output":["trace-2.pps", "trace-3.pps"]
     }
 }

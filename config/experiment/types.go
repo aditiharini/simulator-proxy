@@ -13,10 +13,13 @@ type SimulatorConfig struct {
 	Global   simulatorConfig.GeneralConfig `json:"global"`
 }
 
+type QueryJson = map[string]interface{}
+
 type Config struct {
 	Sender    senderConfig.Config   `json:"sender"`
 	Receiver  receiverConfig.Config `json:"receiver"`
 	Simulator SimulatorConfig       `json:"simulator"`
+	Query     QueryJson             `json:"query"`
 }
 
 // TODO(aditi): Having an empty interface like this is bad

@@ -2,12 +2,73 @@ package trace
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strconv"
+
+	config "github.com/aditiharini/simulator-proxy/config/experiment"
 )
+
+func ParseQuery(queryJson config.QueryJson) Query {
+	fmt.Println(queryJson)
+	if queryJson["type"] == "segment" {
+		var segmentQuery SegmentQuery
+		input := queryJson["input"].(config.QueryJson)
+		segmentQuery.Input = ParseSingleOutputQuery(input)
+		segmentQuery.NumSegments = int(queryJson["segments"].(float64))
+		var outputs []string
+		for _, output := range queryJson["output"].([]interface{}) {
+			outputs = append(outputs, output.(string))
+		}
+		segmentQuery.Output = outputs
+		return segmentQuery
+	} else if queryJson["type"] == "range" {
+		return ParseSingleOutputQuery(queryJson)
+	} else if queryJson["type"] == "full_file" {
+		return ParseSingleOutputQuery(queryJson)
+	} else if queryJson["type"] == "stitch" {
+		return ParseSingleOutputQuery(queryJson)
+	} else {
+		panic("invalid query")
+	}
+}
+
+func ParseSingleOutputQuery(queryJson config.QueryJson) SingleOutputQuery {
+	jsonBytes, err := json.Marshal(queryJson)
+	if err != nil {
+		panic(err)
+	}
+	if queryJson["type"] == "range" {
+		var rangeQuery RangeQuery
+		input := queryJson["input"].(config.QueryJson)
+		rangeQuery.Input = ParseSingleOutputQuery(input)
+		rangeQuery.Length = int(queryJson["length"].(float64))
+		rangeQuery.StartMilliOffset = int(queryJson["start"].(float64))
+		rangeQuery.Output = queryJson["output"].(string)
+		return rangeQuery
+	} else if queryJson["type"] == "full_file" {
+		var fullFileQuery FullFileQuery
+		if err := json.Unmarshal(jsonBytes, &fullFileQuery); err != nil {
+			panic(err)
+		}
+		return fullFileQuery
+	} else if queryJson["type"] == "stitch" {
+		var stitchQuery StitchQuery
+		var queryInputs []Query
+		inputs := queryJson["inputs"].([]config.QueryJson)
+		for _, input := range inputs {
+			queryInputs = append(queryInputs, ParseQuery(input))
+		}
+		stitchQuery.Inputs = queryInputs
+		stitchQuery.Output = queryJson["output"].(string)
+		return stitchQuery
+	} else {
+		panic("invalid query")
+	}
+}
 
 func CreateScratchSpace() string {
 	scratchDir := "scratch"
@@ -35,10 +96,10 @@ type SingleOutputQuery interface {
 }
 
 type RangeQuery struct {
-	Input            SingleOutputQuery
-	StartMilliOffset int
-	Length           int
-	Output           string
+	Input            SingleOutputQuery `json:"input"`
+	StartMilliOffset int               `json:"start"`
+	Length           int               `json:"length"`
+	Output           string            `json:"output"`
 }
 
 func (rq RangeQuery) Execute() {
@@ -94,9 +155,9 @@ func (rq RangeQuery) Outfiles() []string {
 }
 
 type SegmentQuery struct {
-	Input       SingleOutputQuery
-	NumSegments int
-	Output      []string
+	Input       SingleOutputQuery `json:"input"`
+	NumSegments int               `json:"segments"`
+	Output      []string          `json:"output"`
 }
 
 func (sq SegmentQuery) Execute() {
@@ -171,9 +232,9 @@ func (sq SegmentQuery) Outfiles() []string {
 }
 
 type FullFileQuery struct {
-	Batchname string
-	Tracename string
-	Output    string
+	Batchname string `json:"batch"`
+	Tracename string `json:"trace"`
+	Output    string `json:"output`
 }
 
 func (fq FullFileQuery) Execute() {
@@ -191,8 +252,8 @@ func (fq FullFileQuery) Outfiles() []string {
 }
 
 type StitchQuery struct {
-	Inputs []Query
-	Output string
+	Inputs []Query `json:"inputs"`
+	Output string  `json:"output"`
 }
 
 func (sq StitchQuery) Execute() {

@@ -14,6 +14,7 @@ import (
 
 	config "github.com/aditiharini/simulator-proxy/config/experiment"
 	simulatorConfig "github.com/aditiharini/simulator-proxy/config/simulator"
+	trace "github.com/aditiharini/simulator-proxy/traces"
 )
 
 // Only have drone to base station
@@ -185,13 +186,20 @@ func main() {
 	flag.Parse()
 
 	exec.Command("rm", "-rf", "tmp").Run()
-	exec.Command("mkdir", "tmp").Run()
-	exec.Command("mkdir", "-p", "tmp/inputs/links").Run()
-	exec.Command("mkdir", "tmp/inputs/full").Run()
-	exec.Command("mkdir", "-p", "tmp/outputs/links").Run()
-	exec.Command("mkdir", "tmp/outputs/full").Run()
-	exec.Command("mkdir", "tmp/outputs/csv").Run()
+	os.Mkdir("tmp", os.ModePerm)
+	os.MkdirAll("tmp/inputs/links", os.ModePerm)
+	os.MkdirAll("tmp/inputs/full", os.ModePerm)
+	os.MkdirAll("tmp/outputs/links", os.ModePerm)
+	os.MkdirAll("tmp/outputs/full", os.ModePerm)
+	os.MkdirAll("tmp/outputs/csv", os.ModePerm)
+
 	config := processConfig(*fullyConnectedConfig, "tmp/inputs/full", "tmp/inputs/links")
+
+	os.Mkdir("data", os.ModePerm)
+	os.Chdir("data")
+	query := trace.ParseQuery(config.Query)
+	query.Execute()
+	os.Chdir("..")
 
 	linkFiles, err := ioutil.ReadDir("tmp/inputs/links")
 	if err != nil {
