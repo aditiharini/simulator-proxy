@@ -140,7 +140,7 @@ func runSimulator(config config.Config, inputFile string, outputFile string) {
 
 	inpath := fmt.Sprintf("%s/%s", "../experiment", inputFile)
 	outpath := fmt.Sprintf("%s/%s", "../experiment", outputFile)
-	simCmd := fmt.Sprintf("cd ../simulator && sudo ./simulator -config=%s > %s", inpath, outpath)
+	simCmd := fmt.Sprintf("sudo ../simulator/simulator -config=%s > %s", inpath, outpath)
 	run(simCmd, "SIM", true, true)
 	time.Sleep(time.Second * time.Duration(1))
 
@@ -185,7 +185,7 @@ func main() {
 	experimentName := flag.String("experimentName", "", "name to upload experiment with")
 	flag.Parse()
 
-	exec.Command("rm", "-rf", "tmp").Run()
+	os.RemoveAll("tmp")
 	os.Mkdir("tmp", os.ModePerm)
 	os.MkdirAll("tmp/inputs/links", os.ModePerm)
 	os.MkdirAll("tmp/inputs/full", os.ModePerm)
@@ -195,6 +195,7 @@ func main() {
 
 	config := processConfig(*fullyConnectedConfig, "tmp/inputs/full", "tmp/inputs/links")
 
+	os.RemoveAll("data")
 	os.Mkdir("data", os.ModePerm)
 	os.Chdir("data")
 	query := trace.ParseQuery(config.Query)

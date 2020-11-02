@@ -128,6 +128,8 @@ func main() {
 		sim.SetRouter(NewBroadcastSimulator(linkConfigs))
 	} else if config.General.RoutingAlgorithm == "best_neighbor" {
 		sim.SetRouter(NewBestNeighborSimulator(linkConfigs, config.General.SimulatedDstAddress))
+	} else {
+		panic("No valid routing set")
 	}
 	sim.Start(linkConfigs, config.General.MaxQueueLength)
 
