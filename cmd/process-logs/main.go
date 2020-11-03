@@ -262,7 +262,7 @@ func splitLinkLogs(combined string) []string {
 }
 
 func combineCsvs(csvs []string, outfname string) {
-	outFile, err := os.Open(outfname)
+	outFile, err := os.Create(outfname)
 	if err != nil {
 		panic(err)
 	}
@@ -277,6 +277,8 @@ func combineCsvs(csvs []string, outfname string) {
 		}
 
 		reader := csv.NewReader(csvFile)
+		// Discard the header
+		reader.Read()
 		for {
 			row, err := reader.Read()
 			if err == io.EOF {
