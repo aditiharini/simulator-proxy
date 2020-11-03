@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -83,6 +84,12 @@ func (ld LatencyData) toStringList() []string {
 	return []string{time, latency}
 }
 
+func experimentType(filename string) string {
+	parts := strings.Split(filename, "/")
+	name := strings.Split(parts[len(parts)-1], ".csv")[0]
+	return name
+}
+
 func (lg *LatencyDataset) toCsv(filename string) {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -93,10 +100,11 @@ func (lg *LatencyDataset) toCsv(filename string) {
 	w := csv.NewWriter(file)
 	defer w.Flush()
 
-	columns := []string{"time", "latency"}
+	experimentType := experimentType(filename)
+	columns := []string{"time", "latency", "type"}
 	w.Write(columns)
 	for _, latencyData := range lg.data {
-		w.Write(latencyData.toStringList())
+		w.Write(append(latencyData.toStringList(), experimentType))
 	}
 }
 
@@ -253,6 +261,37 @@ func splitLinkLogs(combined string) []string {
 	return strings.Split(combined, ",")
 }
 
+func combineCsvs(csvs []string, outfname string) {
+	outFile, err := os.Open(outfname)
+	if err != nil {
+		panic(err)
+	}
+	defer outFile.Close()
+	outWriter := csv.NewWriter(outFile)
+	outWriter.Write([]string{"time", "latency", "type"})
+	defer outWriter.Flush()
+	for _, fname := range csvs {
+		csvFile, err := os.Open(fname)
+		if err != nil {
+			panic(err)
+		}
+
+		reader := csv.NewReader(csvFile)
+		for {
+			row, err := reader.Read()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				panic(err)
+			}
+			if err := outWriter.Write(row); err != nil {
+				panic(err)
+			}
+		}
+		csvFile.Close()
+	}
+}
+
 func main() {
 	baseStation := 999
 	newLog := flag.String("newlog", "full.log", "file name of experiment log")
@@ -282,9 +321,11 @@ func main() {
 		event.process(&stats)
 	}
 
+	var allCsvs []string
 	combinedDataset := LatencyDataset{data: stats.calculateLatencies()}
 	combinedPath := fmt.Sprintf("%s/combined.csv", *outdir)
 	combinedDataset.toCsv(combinedPath)
+	allCsvs = append(allCsvs, combinedPath)
 
 	for i, linkLog := range splitLinkLogs(*linkLogs) {
 		file, err := os.Open(linkLog)
@@ -315,7 +356,9 @@ func main() {
 		linkDataset.replaceBaseTimes(correspondingLinkStart)
 		linkDataset.normalizeTimesTo(stats.startTime)
 		linkPath := fmt.Sprintf("%s/link%d.csv", *outdir, i)
+		allCsvs = append(allCsvs, linkPath)
 		linkDataset.toCsv(linkPath)
 	}
 
+	combineCsvs(allCsvs, fmt.Sprintf("%s/all.csv", *outdir))
 }
