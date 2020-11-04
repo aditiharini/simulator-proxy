@@ -13,7 +13,6 @@ import (
 )
 
 func ParseQuery(queryJson config.QueryJson) Query {
-	fmt.Println(queryJson)
 	if queryJson["type"] == "segment" {
 		var segmentQuery SegmentQuery
 		input := queryJson["input"].(config.QueryJson)
