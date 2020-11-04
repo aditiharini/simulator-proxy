@@ -185,15 +185,20 @@ func main() {
 	experimentName := flag.String("experimentName", "", "name to upload experiment with")
 	flag.Parse()
 
+	plotDir := "tmp/outputs/plots"
+	linkConfigDir := "tmp/inputs/links"
+	combinedConfigDir := "tmp/inputs/full"
+	linkLogDir := "tmp/outputs/links"
 	os.RemoveAll("tmp")
 	os.Mkdir("tmp", os.ModePerm)
-	os.MkdirAll("tmp/inputs/links", os.ModePerm)
-	os.MkdirAll("tmp/inputs/full", os.ModePerm)
-	os.MkdirAll("tmp/outputs/links", os.ModePerm)
+	os.MkdirAll(linkConfigDir, os.ModePerm)
+	os.MkdirAll(combinedConfigDir, os.ModePerm)
+	os.MkdirAll(linkLogDir, os.ModePerm)
 	os.MkdirAll("tmp/outputs/full", os.ModePerm)
 	os.MkdirAll("tmp/outputs/csv", os.ModePerm)
+	os.MkdirAll(plotDir, os.ModePerm)
 
-	config := processConfig(*fullyConnectedConfig, "tmp/inputs/full", "tmp/inputs/links")
+	config := processConfig(*fullyConnectedConfig, combinedConfigDir, linkConfigDir)
 
 	os.RemoveAll("data")
 	os.Mkdir("data", os.ModePerm)
@@ -202,21 +207,21 @@ func main() {
 	query.Execute()
 	os.Chdir("..")
 
-	linkFiles, err := ioutil.ReadDir("tmp/inputs/links")
+	linkFiles, err := ioutil.ReadDir(linkConfigDir)
 	if err != nil {
 		panic(err)
 	}
 
 	for _, file := range linkFiles {
-		inpath := fmt.Sprintf("%s/%s", "tmp/inputs/links", file.Name())
-		outpath := fmt.Sprintf("%s/%s.log", "tmp/outputs/links", strings.Split(file.Name(), ".")[0])
+		inpath := fmt.Sprintf("%s/%s", linkConfigDir, file.Name())
+		outpath := fmt.Sprintf("%s/%s.log", linkLogDir, strings.Split(file.Name(), ".")[0])
 		runSimulator(config, inpath, outpath)
 		time.Sleep(time.Second * time.Duration(1))
 	}
 
 	runSimulator(config, "tmp/inputs/full/full.json", "tmp/outputs/full/full.log")
 
-	linkLogs, err := ioutil.ReadDir("tmp/outputs/links")
+	linkLogs, err := ioutil.ReadDir(linkLogDir)
 	var strLinkLogs []string
 	for _, log := range linkLogs {
 		strLinkLogs = append(strLinkLogs, fmt.Sprintf("../experiment/tmp/outputs/links/%s", log.Name()))
@@ -227,6 +232,24 @@ func main() {
 	logCmd := fmt.Sprintf("cd ../process-logs && ./process-logs -newlog=%s -linkLogs=%s -outdir=%s", fullLog, fullLinkLogs, "../experiment/tmp/outputs/csv")
 	if out, err := exec.Command("bash", "-c", logCmd).CombinedOutput(); err != nil {
 		fmt.Println(string(out))
+		panic(err)
+	}
+
+	curDir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	csvFile := fmt.Sprintf("%s/%s", curDir, "tmp/outputs/csv/all.csv")
+	os.Chdir(config.Plotting.Dir)
+	for _, script := range config.Plotting.Files {
+		plotFile := fmt.Sprintf("%s/%s/%s.png", curDir, plotDir, strings.Split(script, ".R")[0])
+		plotCmd := fmt.Sprintf("Rscript --vanilla %s %s %s", script, csvFile, plotFile)
+		if out, err := exec.Command("bash", "-c", plotCmd).CombinedOutput(); err != nil {
+			fmt.Println(string(out))
+			panic(err)
+		}
+	}
+	if err := os.Chdir(curDir); err != nil {
 		panic(err)
 	}
 

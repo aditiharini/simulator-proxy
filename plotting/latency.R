@@ -4,7 +4,7 @@ library(ggplot2)
 args = commandArgs(trailingOnly=TRUE)
 
 data = read.csv(args[1])
-png("myplot.png")
+png(args[2])
 plot <- ggplot() +
   geom_point(data=data, aes(x=time, y=latency, color=type)) +
   ylim(0, 200) + 

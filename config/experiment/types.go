@@ -20,6 +20,12 @@ type Config struct {
 	Receiver  receiverConfig.Config `json:"receiver"`
 	Simulator SimulatorConfig       `json:"simulator"`
 	Query     QueryJson             `json:"query"`
+	Plotting  Plotting              `json:"plotting"`
+}
+
+type Plotting struct {
+	Dir   string   `json:"dir"`
+	Files []string `json:"files"`
 }
 
 // TODO(aditi): Having an empty interface like this is bad
