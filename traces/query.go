@@ -311,6 +311,75 @@ func (sq StitchQuery) Outfiles() []string {
 	return []string{sq.Output}
 }
 
+type DisconnectQuery struct {
+	Input                     SingleOutputQuery
+	Output                    string
+	DisconnectThresholdLength int
+	Length                    int
+	NumDisconnects            int
+}
+
+func (dq DisconnectQuery) Execute() {
+	dq.Input.Execute()
+	infile := dq.Input.Outfile()
+	rawTraceFileMin, err := os.Open(infile)
+	if err != nil {
+		panic(err)
+	}
+	defer rawTraceFileMin.Close()
+	rawTraceFileMax, err := os.Open(infile)
+	if err != nil {
+		panic(err)
+	}
+	defer rawTraceFileMax.Close()
+	rawTraceReaderMin := bufio.NewScanner(rawTraceFileMin)
+	rawTraceReaderMax := bufio.NewScanner(rawTraceFileMax)
+	minOffset, maxOffset := -1, -1
+	var disconnects []int
+	prevOffset := 0
+	foundSection := false
+	for rawTraceReaderMax.Scan() {
+		maxOffset, err = strconv.Atoi(rawTraceReaderMax.Text())
+		if err != nil {
+			panic(err)
+		}
+		if minOffset == -1 {
+			minOffset = maxOffset
+		}
+
+		if prevOffset != 0 && maxOffset >= prevOffset+dq.DisconnectThresholdLength {
+			disconnects = append(disconnects, maxOffset)
+		}
+
+		for maxOffset-minOffset > dq.Length {
+			if len(disconnects) >= dq.NumDisconnects {
+				foundSection = true
+				break
+			}
+			if !rawTraceReaderMin.Scan() {
+				panic(fmt.Sprintf("min ahead of max (min: %d, max:%d)", minOffset, maxOffset))
+			}
+			minOffset, err = strconv.Atoi(rawTraceReaderMin.Text())
+			if len(disconnects) > 0 && minOffset > disconnects[0] {
+				disconnects = disconnects[1:]
+			}
+		}
+
+		if foundSection {
+			break
+		}
+		prevOffset = maxOffset
+	}
+
+	if foundSection {
+		fmt.Printf("Range: (%d, %d), Disconnects:%d\n", minOffset, maxOffset, len(disconnects))
+		rangeQuery := RangeQuery{Input: dq.Input, Output: dq.Output, StartMilliOffset: minOffset, Length: maxOffset - minOffset}
+		rangeQuery.Execute()
+	} else {
+		panic("unsatisfiable query")
+	}
+}
+
 func GetRemoteTracePath(batchName string, traceName string) string {
 	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/processed/traces/%s", batchName, traceName)
 }
