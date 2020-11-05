@@ -380,6 +380,14 @@ func (dq DisconnectQuery) Execute() {
 	}
 }
 
+func (dq DisconnectQuery) Outfile() string {
+	return dq.Output
+}
+
+func (dq DisconnectQuery) Outfiles() []string {
+	return []string{dq.Output}
+}
+
 func GetRemoteTracePath(batchName string, traceName string) string {
 	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/processed/traces/%s", batchName, traceName)
 }
