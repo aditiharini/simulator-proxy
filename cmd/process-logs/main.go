@@ -253,7 +253,7 @@ func parseLogLine(data []byte) Event {
 		json.Unmarshal(data, &startSimulator)
 		return startSimulator
 	} else {
-		panic("unrecognized event type")
+		panic(fmt.Sprintf("unrecognized event type in message:%v", mappedData))
 	}
 }
 

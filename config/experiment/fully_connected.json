@@ -12,7 +12,9 @@
     "simulator" : {
         "topology" : {
             "0" : "data/trace-2.pps",
-            "1" : "data/trace-3.pps"
+            "1" : "data/trace-3.pps",
+            "2" : "data/trace-4.pps",
+            "3" : "data/trace-5.pps"
         },
         "global" : {
             "realSrcAddress" : "100.64.0.4",
@@ -24,7 +26,7 @@
             "devSrcAddr" : "10.0.0.1",
             "devDstAddr" : "10.0.0.2",
             "routingTableNum" : "1",
-            "routingAlgorithm" : "broadcast"
+            "routingAlgorithm": "best_neighbor"       
         }
     },
     "query": {
@@ -38,11 +40,11 @@
                 "output":"trace-1.pps"
             },
             "start":1000,
-            "length":60000,
+            "length":500000,
             "output":"trace-1.pps"
         },
-        "segments":2,
-        "output":["trace-2.pps", "trace-3.pps"]
+        "segments":4,
+        "output":["trace-2.pps", "trace-3.pps", "trace-4.pps", "trace-5.pps"]
     },
     "plotting": {
         "dir":"/home/ubuntu/simulator-proxy/plotting",

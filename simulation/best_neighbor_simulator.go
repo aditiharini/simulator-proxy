@@ -71,5 +71,9 @@ func (s *BestNeighborSimulator) RouteTo(packet Packet, outgoingAddr Address) []A
 			bestNeighbor = addr
 		}
 	}
-	return []Address{bestNeighbor, s.realDest}
+	dests := []Address{s.realDest}
+	if bestNeighbor != -1 {
+		dests = append(dests, bestNeighbor)
+	}
+	return dests
 }

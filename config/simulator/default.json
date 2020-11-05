@@ -11,7 +11,7 @@
             },
             "base" : {
                 "type": "trace",
-                "file": "/home/ubuntu/data/multisend/sender/trace-analysis/uplink-1599172612.pps"
+                "file": "/home/ubuntu/simulator-proxy/cmd/experiment/data/trace-2.pps"
             }
         },
         "1" : {
@@ -25,7 +25,7 @@
             },
             "base" : {
                 "type": "trace", 
-                "file": "/home/ubuntu/data/multisend/sender/trace-analysis/uplink-1599172792.pps"
+                "file": "/home/ubuntu/simulator-proxy/cmd/experiment/data/trace-3.pps"
             }
         },
         "2" : {
@@ -39,7 +39,7 @@
             },
             "base" : {
                 "type": "trace", 
-                "file": "/home/ubuntu/data/multisend/sender/trace-analysis/uplink-1599172883.pps"
+                "file": "/home/ubuntu/simulator-proxy/cmd/experiment/data/trace-2.pps"
             }
         }
     },
@@ -53,6 +53,6 @@
         "devSrcAddr" : "10.0.0.1",
         "devDstAddr" : "10.0.0.2",
         "routingTableNum" : "1",
-        "routingAlgorithm": "broadcast"
+        "routingAlgorithm": "best_neighbor"
     }
 }
