@@ -23,7 +23,7 @@ func NewDelayEmulator(maxQueueLength int, delay time.Duration, src Address, dst 
 
 func (e *DelayEmulator) ApplyEmulation() {
 	p := <-e.inputQueue
-	releaseTime := p.ArrivalTime.Add(e.delay)
+	releaseTime := p.GetArrivalTime().Add(e.delay)
 	delay := releaseTime.Sub(time.Now())
 	if delay > 0 {
 		time.Sleep(delay)

@@ -124,9 +124,9 @@ func main() {
 	linkConfigs := toLinkConfigs(config.Topology, config.General.SimulatedDstAddress)
 
 	// Start all link emulation and start receiving/sending packets
-	if config.General.RoutingAlgorithm == "broadcast" {
+	if config.General.RoutingAlgorithm.Type == "broadcast" {
 		sim.SetRouter(NewBroadcastSimulator(linkConfigs))
-	} else if config.General.RoutingAlgorithm == "best_neighbor" {
+	} else if config.General.RoutingAlgorithm.Type == "best_neighbor" {
 		sim.SetRouter(NewBestNeighborSimulator(linkConfigs, config.General.SimulatedDstAddress))
 	} else {
 		panic("No valid routing set")
@@ -146,7 +146,7 @@ func main() {
 		}).Info()
 		packetData := packetBuf[:n]
 
-		packet := Packet{
+		packet := DataPacket{
 			Src:         config.General.SimulatedSrcAddress,
 			HopsLeft:    config.General.MaxHops,
 			Data:        packetData,
@@ -154,7 +154,7 @@ func main() {
 			Id:          id,
 		}
 		id++
-		sim.WriteNewPacket(packet, packet.Src)
+		sim.WriteNewPacket(&packet, packet.Src)
 	}
 
 }

@@ -4,16 +4,21 @@ package config
 type TopologyJson = map[string](map[string]interface{})
 
 type GeneralConfig struct {
-	RealSrcAddress      string `json:"realSrcAddress"`
-	SimulatedSrcAddress int    `json:"simulatedSrcAddress"`
-	SimulatedDstAddress int    `json:"simulatedDstAddress"`
-	MaxQueueLength      int    `json:"maxQueueLength"`
-	MaxHops             int    `json:"maxHops"`
-	DevName             string `json:"devName"`
-	DevSrcAddr          string `json:"devSrcAddr"`
-	DevDstAddr          string `json:"devDstAddr"`
-	RoutingTableNum     string `json:"routingTableNum"`
-	RoutingAlgorithm    string `json:"routingAlgorithm"`
+	RealSrcAddress      string       `json:"realSrcAddress"`
+	SimulatedSrcAddress int          `json:"simulatedSrcAddress"`
+	SimulatedDstAddress int          `json:"simulatedDstAddress"`
+	MaxQueueLength      int          `json:"maxQueueLength"`
+	MaxHops             int          `json:"maxHops"`
+	DevName             string       `json:"devName"`
+	DevSrcAddr          string       `json:"devSrcAddr"`
+	DevDstAddr          string       `json:"devDstAddr"`
+	RoutingTableNum     string       `json:"routingTableNum"`
+	RoutingAlgorithm    RouterConfig `json:"routingAlgorithm"`
+}
+
+type RouterConfig struct {
+	Type      string `json:"type"`
+	UpdateLag int    `json:"updateLag"`
 }
 
 type Config struct {

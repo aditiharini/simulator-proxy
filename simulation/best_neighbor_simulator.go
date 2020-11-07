@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"sync"
 	"time"
 )
 
@@ -11,12 +12,14 @@ type SelfState struct {
 
 type BestNeighborSimulator struct {
 	// For each drone maintain map to measurement information for all neighbors
-	selfState map[Address]SelfState
-	neighbors map[Address][]Address
-	realDest  int
+	selfState       map[Address]SelfState
+	neighbors       map[Address][]Address
+	realDest        int
+	updateLagMillis time.Duration
+	mutex           sync.Mutex
 }
 
-func NewBestNeighborSimulator(linkConfigs []LinkConfig, realDest Address) *BestNeighborSimulator {
+func NewBestNeighborSimulator(linkConfigs []LinkConfig, realDest Address, updateLagMillis time.Duration) *BestNeighborSimulator {
 	selfState := make(map[Address]SelfState)
 	neighbors := make(map[Address][]Address)
 	for _, linkConfig := range linkConfigs {
@@ -52,11 +55,16 @@ func (s *BestNeighborSimulator) OnIncomingPacket(src Address, dst Address) {
 	}
 }
 
-func (s *BestNeighborSimulator) OnOutgoingPacket(src Address, dst Address) {
-	if dst == s.realDest {
-		state := s.selfState[src]
+func (s *BestNeighborSimulator) OnOutgoingPacket(p Packet) {
+	if p.GetDst() == s.realDest {
+		state := s.selfState[p.GetSrc()]
 		state.latestLatency = time.Since(state.latestArrival)
-		s.selfState[src] = state
+		go func(Packet, SelfState) {
+			time.Sleep(s.updateLagMillis)
+			s.mutex.Lock()
+			s.selfState[p.GetSrc()] = state
+			s.mutex.Unlock()
+		}(p, state)
 	}
 }
 

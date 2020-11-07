@@ -22,7 +22,7 @@ func (s *BroadcastSimulator) OnIncomingPacket(src Address, dst Address) {
 	return
 }
 
-func (s *BroadcastSimulator) OnOutgoingPacket(src Address, dst Address) {
+func (s *BroadcastSimulator) OnOutgoingPacket(p Packet) {
 	// Do nothing
 	return
 }

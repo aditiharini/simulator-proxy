@@ -5,6 +5,15 @@ cmd/process-logs/process-logs
 cmd/process-logs/tmp/*
 cmd/experiment/experiment
 cmd/experiment/tmp/*
+cmd/experiment/data/*
+
+traces/test/*
+saved_plots/*
+
+config/experiment/new_data.json
+config/experiment/old_vs_new.json
+config/experiment/single_link.json
 
 *.log
 *.out
+*.png

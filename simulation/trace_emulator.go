@@ -65,7 +65,7 @@ func NewTraceEmulator(filename string, maxQueueSize int, src Address, dst Addres
 		inputQueue:                make(chan Packet, maxQueueSize),
 		outputQueue:               make(chan Packet, maxQueueSize),
 		havePacketInTransit:       false,
-		packetInTransit:           Packet{},
+		packetInTransit:           &DataPacket{},
 		bytesLeftInDeliveryWindow: 0,
 		bytesLeftInTransit:        0,
 		src:                       src,
@@ -110,7 +110,7 @@ func (t *TraceEmulator) sendPartialPacket() {
 }
 
 func (t *TraceEmulator) sendFullPacket(p Packet) {
-	t.bytesLeftInDeliveryWindow -= len(p.Data)
+	t.bytesLeftInDeliveryWindow -= len(p.GetData())
 	t.outputQueue <- p
 }
 
@@ -118,13 +118,13 @@ func (t *TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
 	for t.bytesLeftInDeliveryWindow > 0 {
 		select {
 		case p := <-t.inputQueue:
-			if len(p.Data) <= t.bytesLeftInDeliveryWindow {
-				t.bytesLeftInDeliveryWindow -= len(p.Data)
+			if len(p.GetData()) <= t.bytesLeftInDeliveryWindow {
+				t.bytesLeftInDeliveryWindow -= len(p.GetData())
 				t.outputQueue <- p
 			} else {
 				t.havePacketInTransit = true
 				t.packetInTransit = p
-				t.bytesLeftInTransit = len(p.Data) - t.bytesLeftInDeliveryWindow
+				t.bytesLeftInTransit = len(p.GetData()) - t.bytesLeftInDeliveryWindow
 				t.bytesLeftInDeliveryWindow = 0
 			}
 		default:
@@ -159,7 +159,7 @@ func (t *TraceEmulator) ApplyEmulation() {
 func (t *TraceEmulator) WriteIncomingPacket(p Packet) {
 	log.WithFields(log.Fields{
 		"event": "packet_entered_link",
-		"id":    p.Id,
+		"id":    p.GetId(),
 		"src":   t.src,
 		"dst":   t.dst,
 	}).Info()
@@ -170,7 +170,7 @@ func (t *TraceEmulator) ReadOutgoingPacket() Packet {
 	p := <-t.outputQueue
 	log.WithFields(log.Fields{
 		"event": "packet_left_link",
-		"id":    p.Id,
+		"id":    p.GetId(),
 		"src":   t.src,
 		"dst":   t.dst,
 	}).Info()

@@ -11,10 +11,10 @@
     },
     "simulator" : {
         "topology" : {
-            "0" : "data/trace-2.pps",
+            "0" : "data/trace-5.pps",
             "1" : "data/trace-3.pps",
             "2" : "data/trace-4.pps",
-            "3" : "data/trace-5.pps"
+            "3" : "data/trace-2.pps"
         },
         "global" : {
             "realSrcAddress" : "100.64.0.4",
@@ -26,7 +26,10 @@
             "devSrcAddr" : "10.0.0.1",
             "devDstAddr" : "10.0.0.2",
             "routingTableNum" : "1",
-            "routingAlgorithm": "best_neighbor"       
+            "routingAlgorithm": {
+                "type": "best_neighbor",
+                "updateLag": 1000
+            }
         }
     },
     "query": {

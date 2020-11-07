@@ -69,7 +69,7 @@ func (s *BaseSimulator) ProcessIncomingPackets() {
 
 // TODO(aditi): This is pretty heavyweight.
 func (s *BaseSimulator) writeToDestination(p Packet) {
-	decodedPacket := gopacket.NewPacket(p.Data, layers.IPProtocolIPv4, gopacket.Default)
+	decodedPacket := gopacket.NewPacket(p.GetData(), layers.IPProtocolIPv4, gopacket.Default)
 	if ipLayer := decodedPacket.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
 		ip.SrcIP = s.tunDest
@@ -106,8 +106,8 @@ func (s *BaseSimulator) writeToDestination(p Packet) {
 
 		log.WithFields(log.Fields{
 			"event": "packet_sent",
-			"id":    p.Id,
-			"src":   p.Src,
+			"id":    p.GetId(),
+			"src":   p.GetSrc(),
 		}).Info()
 
 		// TODO(aditi): Find a way to do this that uses the api
@@ -119,10 +119,10 @@ func (s *BaseSimulator) writeToDestination(p Packet) {
 
 func (s *BaseSimulator) routePacket(packet Packet, srcAddr Address) {
 	dstAddrs := s.router.RouteTo(packet, srcAddr)
-	packet.Src = srcAddr
+	packet.SetSrc(srcAddr)
 	for _, dstAddr := range dstAddrs {
-		packet.Dst = dstAddr
-		packet.ArrivalTime = time.Now()
+		packet.SetDst(dstAddr)
+		packet.SetArrivalTime(time.Now())
 		emulator := s.queues[srcAddr][dstAddr]
 		emulator.WriteIncomingPacket(packet)
 	}
@@ -134,12 +134,12 @@ func (s *BaseSimulator) ProcessOutgoingPackets() {
 			go func(e LinkEmulator) {
 				for {
 					packet := e.ReadOutgoingPacket()
-					s.router.OnOutgoingPacket(e.SrcAddr(), e.DstAddr())
+					s.router.OnOutgoingPacket(packet)
 					// If the emulation is complete for the "real dest", we can send it out on the real device
 					if e.DstAddr() == s.realDest {
 						s.writeToDestination(packet)
-					} else if packet.HopsLeft > 0 {
-						packet.HopsLeft--
+					} else if packet.GetHopsLeft() > 0 {
+						packet.SetHopsLeft(packet.GetHopsLeft() - 1)
 						s.routePacket(packet, e.DstAddr())
 					}
 				}
