@@ -20,15 +20,23 @@ import (
 // Only have drone to base station
 // Generate config that sets drone to drone links
 
+func getDroneLink(linkConfig config.DroneLinkConfig, src string, dst string) config.ConfigEntry {
+	if linkConfig.Type == "fixed_delay" {
+		return config.NewDelayEntry(linkConfig.Delay)
+	} else {
+		panic("invalid drone to drone link config type")
+	}
+}
+
 func writeGeneralConfig(simConfig config.SimulatorConfig, outputDir string) {
 	generalTopology := make(map[string](map[string]interface{}))
-	for strSrc, trace := range simConfig.Topology {
+	for strSrc, trace := range simConfig.BaseLinks {
 		generalTopology[strSrc] = make(map[string]interface{})
 		generalTopology[strSrc]["base"] = config.NewTraceEntry(trace)
 
-		for strDst, _ := range simConfig.Topology {
+		for strDst, _ := range simConfig.BaseLinks {
 			if strSrc != strDst {
-				generalTopology[strSrc][strDst] = config.NewDelayEntry(1)
+				generalTopology[strSrc][strDst] = getDroneLink(simConfig.DroneLinks, strSrc, strDst)
 			}
 		}
 	}
@@ -51,7 +59,7 @@ func writeGeneralConfig(simConfig config.SimulatorConfig, outputDir string) {
 }
 
 func writeLinkConfigs(simConfig config.SimulatorConfig, outputDir string) {
-	for strSrc, trace := range simConfig.Topology {
+	for strSrc, trace := range simConfig.BaseLinks {
 		generalTopology := make(map[string](map[string]interface{}))
 		generalTopology["0"] = make(map[string]interface{})
 		generalTopology["0"]["base"] = config.NewTraceEntry(trace)

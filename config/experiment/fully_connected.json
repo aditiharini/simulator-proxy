@@ -10,7 +10,11 @@
         "address" : "100.64.0.2:8080"
     },
     "simulator" : {
-        "topology" : {
+        "droneLinks" : {
+            "type":"fixed_delay",
+            "delay":10
+        },
+        "baseLinks" : {
             "0" : "data/trace-5.pps",
             "1" : "data/trace-3.pps",
             "2" : "data/trace-4.pps",

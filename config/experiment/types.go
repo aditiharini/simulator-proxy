@@ -8,9 +8,15 @@ import (
 
 type FullyConnectedJson = map[string]string
 
+type DroneLinkConfig struct {
+	Type  string `json:"type"`
+	Delay int    `json:"delay"`
+}
+
 type SimulatorConfig struct {
-	Topology FullyConnectedJson            `json:"topology"`
-	Global   simulatorConfig.GeneralConfig `json:"global"`
+	DroneLinks DroneLinkConfig               `json:"droneLinks"`
+	BaseLinks  FullyConnectedJson            `json:"baseLinks"`
+	Global     simulatorConfig.GeneralConfig `json:"global"`
 }
 
 type QueryJson = map[string]interface{}
