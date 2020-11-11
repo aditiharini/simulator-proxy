@@ -5,11 +5,12 @@ import (
 )
 
 type DelayEmulator struct {
-	inputQueue  chan Packet
-	outputQueue chan Packet
-	delay       time.Duration
-	src         Address
-	dst         Address
+	inputQueue             chan Packet
+	outputQueue            chan Packet
+	delay                  time.Duration
+	src                    Address
+	dst                    Address
+	incomingPacketCallback func(Packet)
 }
 
 func NewDelayEmulator(maxQueueLength int, delay time.Duration, src Address, dst Address) DelayEmulator {
@@ -22,13 +23,23 @@ func NewDelayEmulator(maxQueueLength int, delay time.Duration, src Address, dst 
 }
 
 func (e *DelayEmulator) ApplyEmulation() {
-	p := <-e.inputQueue
+	p := e.readIncomingPacket()
 	releaseTime := p.GetArrivalTime().Add(e.delay)
 	delay := releaseTime.Sub(time.Now())
 	if delay > 0 {
 		time.Sleep(delay)
 	}
 	e.outputQueue <- p
+}
+
+func (e *DelayEmulator) SetOnIncomingPacket(callback func(Packet)) {
+	e.incomingPacketCallback = callback
+}
+
+func (e *DelayEmulator) readIncomingPacket() Packet {
+	p := <-e.inputQueue
+	e.incomingPacketCallback(p)
+	return p
 }
 
 func (e *DelayEmulator) WriteIncomingPacket(p Packet) {

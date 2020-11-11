@@ -1,20 +1,16 @@
 package simulation
 
 type BroadcastSimulator struct {
-	neighbors map[Address][]Address
+	neighbors NeighborMap
 }
 
-func NewBroadcastSimulator(linkConfigs []LinkConfig) *BroadcastSimulator {
-	neighborMap := make(map[Address][]Address)
-	for _, linkConfig := range linkConfigs {
-		srcAddr := linkConfig.SrcAddr()
-		if _, ok := neighborMap[srcAddr]; !ok {
-			neighborMap[srcAddr] = make([]Address, 0)
-		}
-		neighbors := neighborMap[srcAddr]
-		neighborMap[srcAddr] = append(neighbors, linkConfig.DstAddr())
-	}
-	return &BroadcastSimulator{neighbors: neighborMap}
+func NewBroadcastSimulator(neighbors NeighborMap) *BroadcastSimulator {
+	return &BroadcastSimulator{neighbors: neighbors}
+}
+
+func (s *BroadcastSimulator) OnLinkDequeue(p Packet) {
+	// Do nothing
+	return
 }
 
 func (s *BroadcastSimulator) OnIncomingPacket(src Address, dst Address) {
@@ -27,6 +23,12 @@ func (s *BroadcastSimulator) OnOutgoingPacket(p Packet) {
 	return
 }
 
-func (s *BroadcastSimulator) RouteTo(packet Packet, outgoingAddr Address) []Address {
-	return s.neighbors[outgoingAddr]
+func (s *BroadcastSimulator) GetRoutedPackets(packet Packet, outgoingAddr Address) []Packet {
+	var packets []Packet
+	for _, neighbor := range s.neighbors[outgoingAddr] {
+		newPacket := packet.Copy()
+		newPacket.SetDst(neighbor)
+		packets = append(packets, newPacket)
+	}
+	return packets
 }

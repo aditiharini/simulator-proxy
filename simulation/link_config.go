@@ -8,6 +8,22 @@ type LinkConfig interface {
 	DstAddr() Address
 }
 
+type NeighborMap = map[Address][]Address
+
+func ToNeighborsMap(configs []LinkConfig) NeighborMap {
+	neighborMap := make(map[Address][]Address)
+	for _, config := range configs {
+		src := config.SrcAddr()
+		dst := config.DstAddr()
+		if _, ok := neighborMap[src]; !ok {
+			neighborMap[src] = make([]Address, 0)
+		}
+		neighbors := neighborMap[src]
+		neighborMap[src] = append(neighbors, dst)
+	}
+	return neighborMap
+}
+
 type DelayLinkConfig struct {
 	delay time.Duration
 	src   Address

@@ -13,38 +13,34 @@ type SelfState struct {
 type BestNeighborSimulator struct {
 	// For each drone maintain map to measurement information for all neighbors
 	selfState       map[Address]SelfState
-	neighbors       map[Address][]Address
+	neighbors       NeighborMap
 	realDest        int
 	updateLagMillis time.Duration
 	mutex           sync.Mutex
 }
 
-func NewBestNeighborSimulator(linkConfigs []LinkConfig, realDest Address, updateLagMillis time.Duration) *BestNeighborSimulator {
+func NewBestNeighborSimulator(neighborMap NeighborMap, realDest Address, updateLagMillis time.Duration) *BestNeighborSimulator {
 	selfState := make(map[Address]SelfState)
-	neighbors := make(map[Address][]Address)
-	for _, linkConfig := range linkConfigs {
-		srcAddr := linkConfig.SrcAddr()
-		dstAddr := linkConfig.DstAddr()
-		if _, ok := selfState[srcAddr]; !ok {
-			selfState[srcAddr] = SelfState{latestLatency: 0}
-		}
-		if _, ok := selfState[dstAddr]; !ok {
-			selfState[dstAddr] = SelfState{latestLatency: 0}
-		}
-		if _, ok := neighbors[srcAddr]; !ok {
-			neighbors[srcAddr] = make([]Address, 0)
-		}
-		if dstAddr != realDest {
-			srcNeighbors := neighbors[srcAddr]
-			srcNeighbors = append(srcNeighbors, dstAddr)
-			neighbors[srcAddr] = srcNeighbors
+	for src, neighbors := range neighborMap {
+		for _, dst := range neighbors {
+			if _, ok := selfState[src]; !ok {
+				selfState[src] = SelfState{latestLatency: 0}
+			}
+			if _, ok := selfState[dst]; !ok {
+				selfState[dst] = SelfState{latestLatency: 0}
+			}
 		}
 	}
 	return &BestNeighborSimulator{
 		selfState: selfState,
-		neighbors: neighbors,
+		neighbors: neighborMap,
 		realDest:  realDest,
 	}
+}
+
+func (s *BestNeighborSimulator) OnLinkDequeue(p Packet) {
+	// Do nothing
+	return
 }
 
 func (s *BestNeighborSimulator) OnIncomingPacket(src Address, dst Address) {
@@ -68,20 +64,22 @@ func (s *BestNeighborSimulator) OnOutgoingPacket(p Packet) {
 	}
 }
 
-func (s *BestNeighborSimulator) RouteTo(packet Packet, outgoingAddr Address) []Address {
-	// TODO(aditi): replace with better version of max int
+func (s *BestNeighborSimulator) GetRoutedPackets(packet Packet, outgoingAddr Address) []Packet {
 	lowestLatency := 10000 * time.Second
 	bestNeighbor := -1
 	for _, addr := range s.neighbors[outgoingAddr] {
 		measurement := s.selfState[addr]
-		if lowestLatency == -1 || measurement.latestLatency < lowestLatency {
+		if addr != s.realDest && (lowestLatency == -1 || measurement.latestLatency < lowestLatency) {
 			lowestLatency = measurement.latestLatency
 			bestNeighbor = addr
 		}
 	}
-	dests := []Address{s.realDest}
+	packet.SetDst(s.realDest)
+	packets := []Packet{packet}
 	if bestNeighbor != -1 {
-		dests = append(dests, bestNeighbor)
+		newPacket := packet.Copy()
+		newPacket.SetDst(bestNeighbor)
+		packets = append(packets, newPacket)
 	}
-	return dests
+	return packets
 }

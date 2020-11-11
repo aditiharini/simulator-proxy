@@ -21,6 +21,7 @@ type TraceEmulator struct {
 	bytesLeftInDeliveryWindow int
 	src                       Address
 	dst                       Address
+	incomingPacketCallback    func(Packet)
 }
 
 func (t *TraceEmulator) SrcAddr() Address {
@@ -116,8 +117,11 @@ func (t *TraceEmulator) sendFullPacket(p Packet) {
 
 func (t *TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
 	for t.bytesLeftInDeliveryWindow > 0 {
-		select {
-		case p := <-t.inputQueue:
+		p := t.readIncomingPacketIfAvailable()
+		if p == nil {
+			t.bytesLeftInDeliveryWindow = 0
+			return
+		} else {
 			if len(p.GetData()) <= t.bytesLeftInDeliveryWindow {
 				t.bytesLeftInDeliveryWindow -= len(p.GetData())
 				t.outputQueue <- p
@@ -127,9 +131,6 @@ func (t *TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
 				t.bytesLeftInTransit = len(p.GetData()) - t.bytesLeftInDeliveryWindow
 				t.bytesLeftInDeliveryWindow = 0
 			}
-		default:
-			t.bytesLeftInDeliveryWindow = 0
-			return
 		}
 	}
 }
@@ -148,12 +149,36 @@ func (t *TraceEmulator) ApplyEmulation() {
 		t.sendNewPacketsImmediatelyIfPossible()
 	}
 
-	p := <-t.inputQueue
+	p := t.readIncomingPacket()
 	t.skipUnusedSlots(time.Now())
 	t.waitForNextDeliveryOpportunity()
 	t.useDeliverySlot()
 	t.sendFullPacket(p)
 	t.sendNewPacketsImmediatelyIfPossible()
+}
+
+func (t *TraceEmulator) SetOnIncomingPacket(callback func(Packet)) {
+	t.incomingPacketCallback = callback
+}
+
+func (t *TraceEmulator) onIncomingPacket(p Packet) {
+	t.incomingPacketCallback(p)
+}
+
+func (t *TraceEmulator) readIncomingPacket() Packet {
+	p := <-t.inputQueue
+	t.onIncomingPacket(p)
+	return p
+}
+
+func (t *TraceEmulator) readIncomingPacketIfAvailable() Packet {
+	select {
+	case p := <-t.inputQueue:
+		t.onIncomingPacket(p)
+		return p
+	default:
+		return nil
+	}
 }
 
 func (t *TraceEmulator) WriteIncomingPacket(p Packet) {

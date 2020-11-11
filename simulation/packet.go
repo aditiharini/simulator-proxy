@@ -16,6 +16,8 @@ type Packet interface {
 	GetArrivalTime() time.Time
 	SetArrivalTime(t time.Time)
 	GetId() int
+	ClearData()
+	Copy() Packet
 }
 
 type DataPacket struct {
@@ -67,10 +69,21 @@ func (dp *DataPacket) GetId() int {
 	return dp.Id
 }
 
+func (dp *DataPacket) ClearData() {
+	dp.Data = nil
+}
+
+func (dp *DataPacket) Copy() Packet {
+	origPacket := *dp
+	newPacket := origPacket
+	return &newPacket
+}
+
 type LinkEmulator interface {
 	ApplyEmulation()
 	ReadOutgoingPacket() Packet
 	WriteIncomingPacket(Packet)
+	SetOnIncomingPacket(func(Packet))
 	SrcAddr() Address
 	DstAddr() Address
 }
@@ -82,5 +95,6 @@ type OutgoingPacketResponse struct {
 type RoutingSimulator interface {
 	OnIncomingPacket(src Address, dst Address)
 	OnOutgoingPacket(p Packet)
-	RouteTo(packet Packet, outgoingAddr Address) []Address
+	OnLinkDequeue(p Packet)
+	GetRoutedPackets(packet Packet, outgoingAddr Address) []Packet
 }

@@ -123,11 +123,15 @@ func main() {
 	sim := NewSimulator(config.General.SimulatedDstAddress, dev, net.ParseIP(config.General.DevDstAddr))
 	linkConfigs := toLinkConfigs(config.Topology, config.General.SimulatedDstAddress)
 
+	neighborMap := ToNeighborsMap(linkConfigs)
+
 	// Start all link emulation and start receiving/sending packets
 	if config.General.RoutingAlgorithm.Type == "broadcast" {
-		sim.SetRouter(NewBroadcastSimulator(linkConfigs))
+		sim.SetRouter(NewBroadcastSimulator(neighborMap))
 	} else if config.General.RoutingAlgorithm.Type == "best_neighbor" {
-		sim.SetRouter(NewBestNeighborSimulator(linkConfigs, config.General.SimulatedDstAddress))
+		sim.SetRouter(NewBestNeighborSimulator(neighborMap, config.General.SimulatedDstAddress, time.Millisecond*time.Duration(config.General.RoutingAlgorithm.UpdateLag)))
+	} else if config.General.RoutingAlgorithm.Type == "oracle" {
+		sim.SetRouter(NewOracleRouter(neighborMap))
 	} else {
 		panic("No valid routing set")
 	}

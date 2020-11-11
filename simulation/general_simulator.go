@@ -47,7 +47,11 @@ func (s *BaseSimulator) Start(linkConfigs []LinkConfig, maxQueueLength int) {
 		if _, ok := s.queues[srcAddr]; !ok {
 			s.queues[srcAddr] = make(map[Address]LinkEmulator)
 		}
-		s.queues[srcAddr][linkConfig.DstAddr()] = linkConfig.ToLinkEmulator(maxQueueLength)
+		emu := linkConfig.ToLinkEmulator(maxQueueLength)
+		emu.SetOnIncomingPacket(func(p Packet) {
+			s.router.OnLinkDequeue(p)
+		})
+		s.queues[srcAddr][linkConfig.DstAddr()] = emu
 	}
 	s.ProcessIncomingPackets()
 	s.ProcessOutgoingPackets()
@@ -118,12 +122,11 @@ func (s *BaseSimulator) writeToDestination(p Packet) {
 }
 
 func (s *BaseSimulator) routePacket(packet Packet, srcAddr Address) {
-	dstAddrs := s.router.RouteTo(packet, srcAddr)
 	packet.SetSrc(srcAddr)
-	for _, dstAddr := range dstAddrs {
-		packet.SetDst(dstAddr)
+	packets := s.router.GetRoutedPackets(packet, srcAddr)
+	for _, packet := range packets {
 		packet.SetArrivalTime(time.Now())
-		emulator := s.queues[srcAddr][dstAddr]
+		emulator := s.queues[srcAddr][packet.GetDst()]
 		emulator.WriteIncomingPacket(packet)
 	}
 }
