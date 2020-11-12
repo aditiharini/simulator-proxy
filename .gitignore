@@ -14,6 +14,7 @@ config/experiment/new_data.json
 config/experiment/old_vs_new.json
 config/experiment/single_link.json
 
+*.test
 *.log
 *.out
 *.png

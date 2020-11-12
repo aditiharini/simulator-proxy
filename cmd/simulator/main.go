@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -74,18 +75,16 @@ func toLinkConfigs(rawTopology config.TopologyJson, simulatedDstAddress Address)
 	return linkConfigs
 }
 
-func main() {
+func Start(config config.Config, ctx context.Context) {
+	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
+	// starting any mahimahi instances or simulator.
+	// This will stop router advertisement messages.
 	log.SetFormatter(&log.JSONFormatter{
 		TimestampFormat: time.StampMicro,
 	})
 	log.SetOutput(os.Stdout)
-	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
-	// starting any mahimahi instances or simulator.
-	// This will stop router advertisement messages.
-	configFile := flag.String("config", "../../config/simulator/default.json", "some global configuration params")
-	flag.Parse()
+	log.SetLevel(log.ErrorLevel)
 
-	config := readConfig(*configFile)
 	devConfig := water.Config{
 		DeviceType: water.TUN,
 	}
@@ -139,26 +138,44 @@ func main() {
 
 	id := 0
 	for {
-		packetBuf := make([]byte, 2000)
-		n, err := dev.Read(packetBuf)
-		if err != nil {
-			panic(err)
-		}
-		log.WithFields(log.Fields{
-			"event": "packet_received",
-			"id":    id,
-		}).Info()
-		packetData := packetBuf[:n]
+		select {
+		case <-ctx.Done():
+			fmt.Println("Context closed")
+			return
+		default:
+			packetBuf := make([]byte, 2000)
+			n, err := dev.Read(packetBuf)
+			if err != nil {
+				panic(err)
+			}
+			log.WithFields(log.Fields{
+				"event": "packet_received",
+				"id":    id,
+			}).Info()
+			packetData := packetBuf[:n]
 
-		packet := DataPacket{
-			Src:         config.General.SimulatedSrcAddress,
-			HopsLeft:    config.General.MaxHops,
-			Data:        packetData,
-			ArrivalTime: time.Now(),
-			Id:          id,
+			packet := DataPacket{
+				Src:         config.General.SimulatedSrcAddress,
+				HopsLeft:    config.General.MaxHops,
+				Data:        packetData,
+				ArrivalTime: time.Now(),
+				Id:          id,
+			}
+			id++
+			sim.WriteNewPacket(&packet, packet.Src)
 		}
-		id++
-		sim.WriteNewPacket(&packet, packet.Src)
 	}
+}
 
+func main() {
+	// Run sudo sysctl -w net.ipv6.conf.default.accept_ra=0 before
+	// starting any mahimahi instances or simulator.
+	// This will stop router advertisement messages.
+	configFile := flag.String("config", "../../config/simulator/default.json", "some global configuration params")
+	runTime := flag.Int("time", -1, "Time to run sim for in seconds")
+	flag.Parse()
+	config := readConfig(*configFile)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*runTime))
+	Start(config, ctx)
+	cancel()
 }

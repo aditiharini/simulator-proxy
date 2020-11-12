@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -91,20 +92,24 @@ func (s *BaseSimulator) writeToDestination(p Packet) {
 			if err != nil {
 				panic(err)
 			}
-		} else if tcpLayer := decodedPacket.Layer(layers.LayerTypeUDP); udpLayer != nil {
-			tcp, _ := tcpLayer.(*layers.UDP)
+		} else if tcpLayer := decodedPacket.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+			tcp, _ := tcpLayer.(*layers.TCP)
 			tcp.SetNetworkLayerForChecksum(ip)
 			err := gopacket.SerializeLayers(
 				buf,
 				gopacket.SerializeOptions{ComputeChecksums: true},
 				ip,
 				tcp,
-				gopacket.Payload(udpLayer.LayerPayload()),
+				gopacket.Payload(tcpLayer.LayerPayload()),
 			)
 			if err != nil {
 				panic(err)
 			}
 		} else {
+			fmt.Println("All packet layers:")
+			for _, layer := range decodedPacket.Layers() {
+				fmt.Println("- ", layer.LayerType())
+			}
 			panic("unsupported application layer")
 		}
 
