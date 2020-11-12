@@ -114,12 +114,8 @@ func run(cmdStr string, tag string, printStdout bool, printStderr bool) *exec.Cm
 
 }
 
-func RunSetup(addr string) {
-	time.Sleep(2 * time.Second)
-}
-
-func TestBroadcast(t *testing.T) {
-	simConfig := CreateConfig(config.RouterConfig{Type: "broadcast"})
+func RunTest(routerConfig config.RouterConfig) {
+	simConfig := CreateConfig(routerConfig)
 	receiverCmd := fmt.Sprintf("mm-delay 1 iperf -u -s")
 	fmt.Println(receiverCmd)
 	receiver := run(receiverCmd, "[RECEIVER]", true, true)
@@ -138,5 +134,20 @@ func TestBroadcast(t *testing.T) {
 	sender.Wait()
 	<-simDone
 	syscall.Kill(-receiver.Process.Pid, syscall.SIGTERM)
+	time.Sleep(2 * time.Second)
 	fmt.Println("Finished cleanup")
+}
+
+// sudo sysctl -w net.ipv4.conf.all.send_redirects=0
+// sudo sysctl -w net.ipv4.conf.all.accept_redirects=0
+func TestBroadcast(t *testing.T) {
+	RunTest(config.RouterConfig{Type: "broadcast"})
+}
+
+func TestBestNeighbor(t *testing.T) {
+	RunTest(config.RouterConfig{Type: "best_neighbor", UpdateLag: 100.})
+}
+
+func TestOracle(t *testing.T) {
+	RunTest(config.RouterConfig{Type: "oracle"})
 }

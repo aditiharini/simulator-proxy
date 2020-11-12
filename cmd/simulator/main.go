@@ -141,6 +141,7 @@ func Start(config config.Config, ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			fmt.Println("Context closed")
+			dev.Close()
 			return
 		default:
 			packetBuf := make([]byte, 2000)
