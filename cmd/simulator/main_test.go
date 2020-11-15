@@ -147,7 +147,3 @@ func TestBroadcast(t *testing.T) {
 func TestBestNeighbor(t *testing.T) {
 	RunTest(config.RouterConfig{Type: "best_neighbor", UpdateLag: 100.})
 }
-
-func TestOracle(t *testing.T) {
-	RunTest(config.RouterConfig{Type: "oracle"})
-}

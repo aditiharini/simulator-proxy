@@ -12,4 +12,3 @@ plot <- ggplot() +
   ylab("latency (ms)")
 print(plot)
 dev.off()
-  

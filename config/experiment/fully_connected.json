@@ -53,8 +53,17 @@
         "segments":4,
         "output":["trace-2.pps", "trace-3.pps", "trace-4.pps", "trace-5.pps"]
     },
-    "plotting": {
+    "evaluation": {
         "dir":"/home/ubuntu/simulator-proxy/plotting",
-        "files": ["latency.R"]
+        "setup" : [
+            {
+                "script":"latency_percentile.R",
+                "outputType":"txt"
+            },
+            {
+                "script":"latency_plot.R",
+                "outputType":"png"
+            }
+        ]
     }
 }

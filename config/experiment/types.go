@@ -22,16 +22,21 @@ type SimulatorConfig struct {
 type QueryJson = map[string]interface{}
 
 type Config struct {
-	Sender    senderConfig.Config   `json:"sender"`
-	Receiver  receiverConfig.Config `json:"receiver"`
-	Simulator SimulatorConfig       `json:"simulator"`
-	Query     QueryJson             `json:"query"`
-	Plotting  Plotting              `json:"plotting"`
+	Sender     senderConfig.Config   `json:"sender"`
+	Receiver   receiverConfig.Config `json:"receiver"`
+	Simulator  SimulatorConfig       `json:"simulator"`
+	Query      QueryJson             `json:"query"`
+	Evaluation Evaluation            `json:"evaluation"`
 }
 
-type Plotting struct {
-	Dir   string   `json:"dir"`
-	Files []string `json:"files"`
+type EvaluationSetup struct {
+	Script     string `json:"script"`
+	OutputType string `json:"outputType"`
+}
+
+type Evaluation struct {
+	Dir    string            `json:"dir"`
+	Setups []EvaluationSetup `json:"setup"`
 }
 
 // TODO(aditi): Having an empty interface like this is bad

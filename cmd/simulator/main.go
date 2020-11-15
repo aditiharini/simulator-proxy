@@ -83,7 +83,6 @@ func Start(config config.Config, ctx context.Context) {
 		TimestampFormat: time.StampMicro,
 	})
 	log.SetOutput(os.Stdout)
-	log.SetLevel(log.ErrorLevel)
 
 	devConfig := water.Config{
 		DeviceType: water.TUN,
@@ -129,8 +128,6 @@ func Start(config config.Config, ctx context.Context) {
 		sim.SetRouter(NewBroadcastSimulator(neighborMap))
 	} else if config.General.RoutingAlgorithm.Type == "best_neighbor" {
 		sim.SetRouter(NewBestNeighborSimulator(neighborMap, config.General.SimulatedDstAddress, time.Millisecond*time.Duration(config.General.RoutingAlgorithm.UpdateLag)))
-	} else if config.General.RoutingAlgorithm.Type == "oracle" {
-		sim.SetRouter(NewOracleRouter(neighborMap))
 	} else {
 		panic("No valid routing set")
 	}
@@ -173,10 +170,10 @@ func main() {
 	// starting any mahimahi instances or simulator.
 	// This will stop router advertisement messages.
 	configFile := flag.String("config", "../../config/simulator/default.json", "some global configuration params")
-	runTime := flag.Int("time", -1, "Time to run sim for in seconds")
+	runTime := flag.Int("time", 20, "Time to run sim for in seconds")
 	flag.Parse()
 	config := readConfig(*configFile)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*runTime))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(*runTime))
 	Start(config, ctx)
 	cancel()
 }

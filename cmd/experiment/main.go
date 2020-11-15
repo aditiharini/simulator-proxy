@@ -148,7 +148,7 @@ func runSimulator(config config.Config, inputFile string, outputFile string) {
 
 	inpath := fmt.Sprintf("%s/%s", "../experiment", inputFile)
 	outpath := fmt.Sprintf("%s/%s", "../experiment", outputFile)
-	simCmd := fmt.Sprintf("sudo ../simulator/simulator -config=%s > %s", inpath, outpath)
+	simCmd := fmt.Sprintf("sudo ../simulator/simulator -config=%s -time=%d> %s", inpath, 20, outpath)
 	run(simCmd, "SIM", true, true)
 	time.Sleep(time.Second * time.Duration(1))
 
@@ -193,7 +193,7 @@ func main() {
 	experimentName := flag.String("experimentName", "", "name to upload experiment with")
 	flag.Parse()
 
-	plotDir := "tmp/outputs/plots"
+	evalDir := "tmp/outputs/evaluation"
 	linkConfigDir := "tmp/inputs/links"
 	combinedConfigDir := "tmp/inputs/full"
 	linkLogDir := "tmp/outputs/links"
@@ -204,7 +204,7 @@ func main() {
 	os.MkdirAll(linkLogDir, os.ModePerm)
 	os.MkdirAll("tmp/outputs/full", os.ModePerm)
 	os.MkdirAll("tmp/outputs/csv", os.ModePerm)
-	os.MkdirAll(plotDir, os.ModePerm)
+	os.MkdirAll(evalDir, os.ModePerm)
 
 	config := processConfig(*fullyConnectedConfig, combinedConfigDir, linkConfigDir)
 
@@ -248,15 +248,17 @@ func main() {
 		panic(err)
 	}
 	csvFile := fmt.Sprintf("%s/%s", curDir, "tmp/outputs/csv/all.csv")
-	os.Chdir(config.Plotting.Dir)
-	for _, script := range config.Plotting.Files {
-		plotFile := fmt.Sprintf("%s/%s/%s.png", curDir, plotDir, strings.Split(script, ".R")[0])
-		plotCmd := fmt.Sprintf("Rscript --vanilla %s %s %s", script, csvFile, plotFile)
-		if out, err := exec.Command("bash", "-c", plotCmd).CombinedOutput(); err != nil {
+	os.Chdir(config.Evaluation.Dir)
+	for _, setup := range config.Evaluation.Setups {
+		scriptFilename := strings.Split(setup.Script, ".R")[0]
+		outputFile := fmt.Sprintf("%s/%s/%s.%s", curDir, evalDir, scriptFilename, setup.OutputType)
+		scriptCmd := fmt.Sprintf("Rscript --vanilla %s %s %s", setup.Script, csvFile, outputFile)
+		if out, err := exec.Command("bash", "-c", scriptCmd).CombinedOutput(); err != nil {
 			fmt.Println(string(out))
 			panic(err)
 		}
 	}
+
 	if err := os.Chdir(curDir); err != nil {
 		panic(err)
 	}
