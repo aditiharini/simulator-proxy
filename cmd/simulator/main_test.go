@@ -140,6 +140,11 @@ func RunTest(routerConfig config.RouterConfig) {
 
 // sudo sysctl -w net.ipv4.conf.all.send_redirects=0
 // sudo sysctl -w net.ipv4.conf.all.accept_redirects=0
+// To run test:
+// go test -c
+// sudo chown root simulator.test
+// sudo chmod u+s simulator.test
+// ./simulator.test
 func TestBroadcast(t *testing.T) {
 	RunTest(config.RouterConfig{Type: "broadcast"})
 }
