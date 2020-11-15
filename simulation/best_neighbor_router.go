@@ -38,7 +38,12 @@ func NewBestNeighborSimulator(neighborMap NeighborMap, realDest Address, updateL
 	}
 }
 
-func (s *BestNeighborSimulator) OnLinkDequeue(p Packet) {
+func (s *BestNeighborSimulator) OnLinkInputDequeue(link LinkEmulator, p Packet) {
+	// Do nothing
+	return
+}
+
+func (s *BestNeighborSimulator) OnLinkOutputEnqueue(link LinkEmulator, p Packet) {
 	// Do nothing
 	return
 }
@@ -82,4 +87,8 @@ func (s *BestNeighborSimulator) GetRoutedPackets(packet Packet, outgoingAddr Add
 		packets = append(packets, newPacket)
 	}
 	return packets
+}
+
+func (s *BestNeighborSimulator) PrintState() {
+
 }

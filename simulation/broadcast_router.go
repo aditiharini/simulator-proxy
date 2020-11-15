@@ -8,7 +8,12 @@ func NewBroadcastSimulator(neighbors NeighborMap) *BroadcastSimulator {
 	return &BroadcastSimulator{neighbors: neighbors}
 }
 
-func (s *BroadcastSimulator) OnLinkDequeue(p Packet) {
+func (s *BroadcastSimulator) OnLinkInputDequeue(link LinkEmulator, p Packet) {
+	// Do nothing
+	return
+}
+
+func (s *BroadcastSimulator) OnLinkOutputEnqueue(link LinkEmulator, p Packet) {
 	// Do nothing
 	return
 }
@@ -31,4 +36,8 @@ func (s *BroadcastSimulator) GetRoutedPackets(packet Packet, outgoingAddr Addres
 		packets = append(packets, newPacket)
 	}
 	return packets
+}
+
+func (s *BroadcastSimulator) PrintState() {
+
 }

@@ -83,7 +83,8 @@ type LinkEmulator interface {
 	ApplyEmulation()
 	ReadOutgoingPacket() Packet
 	WriteIncomingPacket(Packet)
-	SetOnIncomingPacket(func(Packet))
+	SetOnIncomingPacket(func(LinkEmulator, Packet))
+	SetOnOutgoingPacket(func(LinkEmulator, Packet))
 	SrcAddr() Address
 	DstAddr() Address
 }
@@ -95,6 +96,8 @@ type OutgoingPacketResponse struct {
 type RoutingSimulator interface {
 	OnIncomingPacket(src Address, dst Address)
 	OnOutgoingPacket(p Packet)
-	OnLinkDequeue(p Packet)
+	OnLinkInputDequeue(link LinkEmulator, p Packet)
+	OnLinkOutputEnqueue(link LinkEmulator, p Packet)
 	GetRoutedPackets(packet Packet, outgoingAddr Address) []Packet
+	PrintState()
 }

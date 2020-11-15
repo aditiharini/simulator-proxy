@@ -83,7 +83,6 @@ func Start(config config.Config, ctx context.Context) {
 		TimestampFormat: time.StampMicro,
 	})
 	log.SetOutput(os.Stdout)
-	log.SetLevel(log.ErrorLevel)
 
 	devConfig := water.Config{
 		DeviceType: water.TUN,
@@ -130,7 +129,7 @@ func Start(config config.Config, ctx context.Context) {
 	} else if config.General.RoutingAlgorithm.Type == "best_neighbor" {
 		sim.SetRouter(NewBestNeighborSimulator(neighborMap, config.General.SimulatedDstAddress, time.Millisecond*time.Duration(config.General.RoutingAlgorithm.UpdateLag)))
 	} else if config.General.RoutingAlgorithm.Type == "oracle" {
-		sim.SetRouter(NewOracleRouter(neighborMap))
+		sim.SetRouter(NewOracleRouter(neighborMap, config.General.SimulatedDstAddress))
 	} else {
 		panic("No valid routing set")
 	}

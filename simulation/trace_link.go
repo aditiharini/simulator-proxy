@@ -2,6 +2,7 @@ package simulation
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -21,7 +22,8 @@ type TraceEmulator struct {
 	bytesLeftInDeliveryWindow int
 	src                       Address
 	dst                       Address
-	incomingPacketCallback    func(Packet)
+	incomingPacketCallback    func(LinkEmulator, Packet)
+	outgoingPacketCallback    func(LinkEmulator, Packet)
 }
 
 func (t *TraceEmulator) SrcAddr() Address {
@@ -107,12 +109,12 @@ func (t *TraceEmulator) sendPartialPacket() {
 	t.havePacketInTransit = false
 	t.bytesLeftInDeliveryWindow -= t.bytesLeftInTransit
 	t.bytesLeftInTransit = 0
-	t.outputQueue <- t.packetInTransit
+	t.writeOutgoingPacket(t.packetInTransit)
 }
 
 func (t *TraceEmulator) sendFullPacket(p Packet) {
 	t.bytesLeftInDeliveryWindow -= len(p.GetData())
-	t.outputQueue <- p
+	t.writeOutgoingPacket(p)
 }
 
 func (t *TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
@@ -124,7 +126,7 @@ func (t *TraceEmulator) sendNewPacketsImmediatelyIfPossible() {
 		} else {
 			if len(p.GetData()) <= t.bytesLeftInDeliveryWindow {
 				t.bytesLeftInDeliveryWindow -= len(p.GetData())
-				t.outputQueue <- p
+				t.writeOutgoingPacket(p)
 			} else {
 				t.havePacketInTransit = true
 				t.packetInTransit = p
@@ -157,12 +159,16 @@ func (t *TraceEmulator) ApplyEmulation() {
 	t.sendNewPacketsImmediatelyIfPossible()
 }
 
-func (t *TraceEmulator) SetOnIncomingPacket(callback func(Packet)) {
+func (t *TraceEmulator) SetOnIncomingPacket(callback func(LinkEmulator, Packet)) {
 	t.incomingPacketCallback = callback
 }
 
+func (t *TraceEmulator) SetOnOutgoingPacket(callback func(LinkEmulator, Packet)) {
+	t.outgoingPacketCallback = callback
+}
+
 func (t *TraceEmulator) onIncomingPacket(p Packet) {
-	t.incomingPacketCallback(p)
+	t.incomingPacketCallback(t, p)
 }
 
 func (t *TraceEmulator) readIncomingPacket() Packet {
@@ -179,6 +185,12 @@ func (t *TraceEmulator) readIncomingPacketIfAvailable() Packet {
 	default:
 		return nil
 	}
+}
+
+func (t *TraceEmulator) writeOutgoingPacket(p Packet) {
+	t.outgoingPacketCallback(t, p)
+	t.outputQueue <- p
+	log.Error(fmt.Sprintf("Link output packet %d, link (%d, %d), size %d\n", p.GetId(), t.src, t.dst, len(p.GetData())))
 }
 
 func (t *TraceEmulator) WriteIncomingPacket(p Packet) {

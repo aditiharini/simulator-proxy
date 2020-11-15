@@ -10,7 +10,8 @@ type DelayEmulator struct {
 	delay                  time.Duration
 	src                    Address
 	dst                    Address
-	incomingPacketCallback func(Packet)
+	incomingPacketCallback func(LinkEmulator, Packet)
+	outgoingPacketCallback func(LinkEmulator, Packet)
 }
 
 func NewDelayEmulator(maxQueueLength int, delay time.Duration, src Address, dst Address) DelayEmulator {
@@ -29,17 +30,26 @@ func (e *DelayEmulator) ApplyEmulation() {
 	if delay > 0 {
 		time.Sleep(delay)
 	}
-	e.outputQueue <- p
+	e.writeOutgoingPacket(p)
 }
 
-func (e *DelayEmulator) SetOnIncomingPacket(callback func(Packet)) {
+func (e *DelayEmulator) SetOnIncomingPacket(callback func(LinkEmulator, Packet)) {
 	e.incomingPacketCallback = callback
+}
+
+func (e *DelayEmulator) SetOnOutgoingPacket(callback func(LinkEmulator, Packet)) {
+	e.outgoingPacketCallback = callback
 }
 
 func (e *DelayEmulator) readIncomingPacket() Packet {
 	p := <-e.inputQueue
-	e.incomingPacketCallback(p)
+	e.incomingPacketCallback(e, p)
 	return p
+}
+
+func (e *DelayEmulator) writeOutgoingPacket(p Packet) {
+	e.outgoingPacketCallback(e, p)
+	e.outputQueue <- p
 }
 
 func (e *DelayEmulator) WriteIncomingPacket(p Packet) {

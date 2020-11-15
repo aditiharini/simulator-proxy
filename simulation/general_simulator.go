@@ -3,6 +3,7 @@ package simulation
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/google/gopacket"
@@ -19,19 +20,24 @@ type Simulator interface {
 }
 
 type BaseSimulator struct {
-	queues   map[Address](map[Address]LinkEmulator) // Map src to list of links
-	realDest int
-	tun      *water.Interface
-	tunDest  net.IP
-	router   RoutingSimulator
+	queues        map[Address](map[Address]LinkEmulator) // Map src to list of links
+	realDest      int
+	tun           *water.Interface
+	tunDest       net.IP
+	router        RoutingSimulator
+	sentPackets   map[int]bool
+	unsentPackets map[int]string
+	mutex         sync.Mutex
 }
 
 func NewSimulator(baseAddress Address, device *water.Interface, deviceDstAddr net.IP) BaseSimulator {
 	return BaseSimulator{
-		queues:   make(map[Address](map[Address]LinkEmulator)),
-		realDest: baseAddress,
-		tun:      device,
-		tunDest:  deviceDstAddr,
+		queues:        make(map[Address](map[Address]LinkEmulator)),
+		realDest:      baseAddress,
+		tun:           device,
+		tunDest:       deviceDstAddr,
+		sentPackets:   make(map[int]bool),
+		unsentPackets: make(map[int]string),
 	}
 }
 
@@ -43,19 +49,31 @@ func (s *BaseSimulator) Start(linkConfigs []LinkConfig, maxQueueLength int) {
 	log.WithFields(log.Fields{
 		"event": "start_simulator",
 	}).Info()
+	packetLock := sync.Mutex{}
 	for _, linkConfig := range linkConfigs {
 		srcAddr := linkConfig.SrcAddr()
 		if _, ok := s.queues[srcAddr]; !ok {
 			s.queues[srcAddr] = make(map[Address]LinkEmulator)
 		}
 		emu := linkConfig.ToLinkEmulator(maxQueueLength)
-		emu.SetOnIncomingPacket(func(p Packet) {
-			s.router.OnLinkDequeue(p)
+		emu.SetOnIncomingPacket(func(link LinkEmulator, p Packet) {
+			packetLock.Lock()
+			s.router.OnLinkInputDequeue(link, p)
+		})
+		emu.SetOnOutgoingPacket(func(link LinkEmulator, p Packet) {
+			s.router.OnLinkOutputEnqueue(link, p)
+			packetLock.Unlock()
 		})
 		s.queues[srcAddr][linkConfig.DstAddr()] = emu
 	}
 	s.ProcessIncomingPackets()
 	s.ProcessOutgoingPackets()
+	go func() {
+		for {
+			time.Sleep(50 * time.Millisecond)
+			log.Error("Unsent packets ", s.unsentPackets)
+		}
+	}()
 }
 
 func (s *BaseSimulator) ProcessIncomingPackets() {
@@ -144,11 +162,23 @@ func (s *BaseSimulator) ProcessOutgoingPackets() {
 					packet := e.ReadOutgoingPacket()
 					s.router.OnOutgoingPacket(packet)
 					// If the emulation is complete for the "real dest", we can send it out on the real device
+					// Don't process zero'd out packet
 					if e.DstAddr() == s.realDest {
-						s.writeToDestination(packet)
-					} else if packet.GetHopsLeft() > 0 {
-						packet.SetHopsLeft(packet.GetHopsLeft() - 1)
-						s.routePacket(packet, e.DstAddr())
+						log.Error(fmt.Sprintf("Arrive packet %d, link (%d, %d), size %d\n", packet.GetId(), e.SrcAddr(), e.DstAddr(), len(packet.GetData())))
+					}
+					if len(packet.GetData()) > 0 {
+						if e.DstAddr() == s.realDest {
+							s.writeToDestination(packet)
+							log.Error(fmt.Sprintf("Sent packet %d, link(%d, %d)\n", packet.GetId(), e.SrcAddr(), e.DstAddr()))
+							s.mutex.Lock()
+							log.Error(fmt.Sprintf("Time in transit packet %d, in %s, out %s\n", packet.GetId(), s.unsentPackets[packet.GetId()], time.Now().Format(time.StampMicro)))
+							delete(s.unsentPackets, packet.GetId())
+							s.sentPackets[packet.GetId()] = true
+							s.mutex.Unlock()
+						} else if packet.GetHopsLeft() > 0 {
+							packet.SetHopsLeft(packet.GetHopsLeft() - 1)
+							s.routePacket(packet, e.DstAddr())
+						}
 					}
 				}
 			}(emulator)
@@ -157,5 +187,8 @@ func (s *BaseSimulator) ProcessOutgoingPackets() {
 }
 
 func (s *BaseSimulator) WriteNewPacket(packet Packet, source Address) {
+	s.mutex.Lock()
+	s.unsentPackets[packet.GetId()] = time.Now().Format(time.StampMicro)
+	s.mutex.Unlock()
 	s.routePacket(packet, source)
 }

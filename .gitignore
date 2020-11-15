@@ -18,3 +18,4 @@ config/experiment/single_link.json
 *.log
 *.out
 *.png
+*.swp

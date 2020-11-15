@@ -10,6 +10,7 @@ import (
 	"time"
 
 	config "github.com/aditiharini/simulator-proxy/config/simulator"
+	log "github.com/sirupsen/logrus"
 )
 
 var topology = map[string]map[string]interface{}{
@@ -138,16 +139,19 @@ func RunTest(routerConfig config.RouterConfig) {
 	fmt.Println("Finished cleanup")
 }
 
+func TestOracle(t *testing.T) {
+	log.SetLevel(log.ErrorLevel)
+	RunTest(config.RouterConfig{Type: "oracle"})
+}
+
 // sudo sysctl -w net.ipv4.conf.all.send_redirects=0
 // sudo sysctl -w net.ipv4.conf.all.accept_redirects=0
 func TestBroadcast(t *testing.T) {
+	log.SetLevel(log.ErrorLevel)
 	RunTest(config.RouterConfig{Type: "broadcast"})
 }
 
 func TestBestNeighbor(t *testing.T) {
+	log.SetLevel(log.ErrorLevel)
 	RunTest(config.RouterConfig{Type: "best_neighbor", UpdateLag: 100.})
-}
-
-func TestOracle(t *testing.T) {
-	RunTest(config.RouterConfig{Type: "oracle"})
 }
