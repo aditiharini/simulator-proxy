@@ -94,9 +94,8 @@ func Start(config config.Config, ctx context.Context) {
 		panic(err)
 	}
 
-	if err := exec.Command("ip", "rule", "delete", "table", config.General.RoutingTableNum).Run(); err != nil {
-		fmt.Println("No iptable deleted")
-	}
+	exec.Command("ip", "rule", "delete", "table", config.General.RoutingTableNum).Run()
+
 	if err := exec.Command("ip", "link", "set", "dev", dev.Name(), "up").Run(); err != nil {
 		fmt.Println("Cmd: ", "ip link set dev", dev.Name(), "up")
 		panic(err)

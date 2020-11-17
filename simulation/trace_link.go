@@ -182,13 +182,18 @@ func (t *TraceEmulator) readIncomingPacketIfAvailable() Packet {
 }
 
 func (t *TraceEmulator) WriteIncomingPacket(p Packet) {
-	log.WithFields(log.Fields{
-		"event": "packet_entered_link",
-		"id":    p.GetId(),
-		"src":   t.src,
-		"dst":   t.dst,
-	}).Info()
-	t.inputQueue <- p
+	select {
+	case t.inputQueue <- p:
+		log.WithFields(log.Fields{
+			"event": "packet_entered_link",
+			"id":    p.GetId(),
+			"src":   t.src,
+			"dst":   t.dst,
+		}).Info()
+	default:
+		// Do nothing
+
+	}
 }
 
 func (t *TraceEmulator) ReadOutgoingPacket() Packet {

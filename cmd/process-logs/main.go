@@ -52,6 +52,7 @@ type Graph interface {
 type LatencyData struct {
 	time    OffsetTime
 	latency time.Duration
+	dropped bool
 }
 
 type Dataset interface {
@@ -81,7 +82,8 @@ func (ld *LatencyDataset) normalizeTimesTo(newBase simTime) {
 func (ld LatencyData) toStringList() []string {
 	time := fmt.Sprintf("%d", ld.time.offset.Milliseconds())
 	latency := fmt.Sprintf("%d", ld.latency.Milliseconds())
-	return []string{time, latency}
+	dropped := fmt.Sprintf("%v", ld.dropped)
+	return []string{time, latency, dropped}
 }
 
 func experimentType(filename string) string {
@@ -101,7 +103,7 @@ func (lg *LatencyDataset) toCsv(filename string) {
 	defer w.Flush()
 
 	experimentType := experimentType(filename)
-	columns := []string{"time", "latency", "type"}
+	columns := []string{"time", "latency", "dropped", "type"}
 	w.Write(columns)
 	for _, latencyData := range lg.data {
 		w.Write(append(latencyData.toStringList(), experimentType))
@@ -135,9 +137,12 @@ func (s Stats) getTimeAsOffsetFromLinkStart(eventTime simTime, link Link) Offset
 func (s Stats) calculateLatencies() []LatencyData {
 	var latencyData []LatencyData
 	for id, entry := range s.entryTime {
-		exit := s.firstExitTime[id]
 		offsetTime := s.getTimeAsOffsetFromGlobalStart(entry)
-		latencyData = append(latencyData, LatencyData{time: offsetTime, latency: exit.Sub(entry.Time)})
+		if exit, ok := s.firstExitTime[id]; ok {
+			latencyData = append(latencyData, LatencyData{time: offsetTime, latency: exit.Sub(entry.Time), dropped: false})
+		} else {
+			latencyData = append(latencyData, LatencyData{time: offsetTime, dropped: true})
+		}
 	}
 	return latencyData
 }
@@ -145,9 +150,12 @@ func (s Stats) calculateLatencies() []LatencyData {
 func (s Stats) calculatePerLinkLatencies(link Link) []LatencyData {
 	var latencyData []LatencyData
 	for id, entryTime := range s.perLinkEntryTime[link] {
-		exit := s.perLinkExitTime[link][id]
 		offsetTime := s.getTimeAsOffsetFromLinkStart(entryTime, link)
-		latencyData = append(latencyData, LatencyData{time: offsetTime, latency: exit.Sub(entryTime.Time)})
+		if exit, ok := s.perLinkExitTime[link][id]; ok {
+			latencyData = append(latencyData, LatencyData{time: offsetTime, latency: exit.Sub(entryTime.Time), dropped: false})
+		} else {
+			latencyData = append(latencyData, LatencyData{time: offsetTime, dropped: true})
+		}
 	}
 	return latencyData
 }
@@ -253,7 +261,7 @@ func parseLogLine(data []byte) Event {
 		json.Unmarshal(data, &startSimulator)
 		return startSimulator
 	} else {
-		panic(fmt.Sprintf("unrecognized event type in message:%v", mappedData))
+		panic(fmt.Sprintf("unrecognized event type in message:%v, original: %s", mappedData, string(data)))
 	}
 }
 
@@ -268,7 +276,7 @@ func combineCsvs(csvs []string, outfname string) {
 	}
 	defer outFile.Close()
 	outWriter := csv.NewWriter(outFile)
-	outWriter.Write([]string{"time", "latency", "type"})
+	outWriter.Write([]string{"time", "latency", "dropped", "type"})
 	defer outWriter.Flush()
 	for _, fname := range csvs {
 		csvFile, err := os.Open(fname)
