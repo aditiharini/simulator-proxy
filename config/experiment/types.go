@@ -25,11 +25,12 @@ type Config struct {
 	Sender     senderConfig.Config   `json:"sender"`
 	Receiver   receiverConfig.Config `json:"receiver"`
 	Simulator  SimulatorConfig       `json:"simulator"`
-	Query      QueryJson             `json:"query"`
+	Query      []QueryJson           `json:"query"`
 	Evaluation Evaluation            `json:"evaluation"`
 }
 
 type EvaluationSetup struct {
+	Input      string `json:"input"`
 	Script     string `json:"script"`
 	OutputType string `json:"outputType"`
 }

@@ -30,6 +30,8 @@ func ParseQuery(queryJson config.QueryJson) Query {
 		return ParseSingleOutputQuery(queryJson)
 	} else if queryJson["type"] == "stitch" {
 		return ParseSingleOutputQuery(queryJson)
+	} else if queryJson["type"] == "spotty" {
+		return ParseSingleOutputQuery(queryJson)
 	} else {
 		panic("invalid query")
 	}
@@ -64,6 +66,15 @@ func ParseSingleOutputQuery(queryJson config.QueryJson) SingleOutputQuery {
 		stitchQuery.Inputs = queryInputs
 		stitchQuery.Output = queryJson["output"].(string)
 		return stitchQuery
+	} else if queryJson["type"] == "spotty" {
+		var spottyQuery SpottyQuery
+		input := queryJson["input"].(config.QueryJson)
+		spottyQuery.Input = ParseSingleOutputQuery(input)
+		spottyQuery.Output = queryJson["output"].(string)
+		spottyQuery.DisconnectThresholdLength = int(queryJson["disconnectThreshold"].(float64))
+		spottyQuery.Length = int(queryJson["length"].(float64))
+		spottyQuery.NumDisconnects = int(queryJson["disconnects"].(float64))
+		return spottyQuery
 	} else {
 		panic("invalid query")
 	}
@@ -311,7 +322,7 @@ func (sq StitchQuery) Outfiles() []string {
 	return []string{sq.Output}
 }
 
-type DisconnectQuery struct {
+type SpottyQuery struct {
 	Input                     SingleOutputQuery
 	Output                    string
 	DisconnectThresholdLength int
@@ -319,9 +330,9 @@ type DisconnectQuery struct {
 	NumDisconnects            int
 }
 
-func (dq DisconnectQuery) Execute() {
-	dq.Input.Execute()
-	infile := dq.Input.Outfile()
+func (sq SpottyQuery) Execute() {
+	sq.Input.Execute()
+	infile := sq.Input.Outfile()
 	rawTraceFileMin, err := os.Open(infile)
 	if err != nil {
 		panic(err)
@@ -347,12 +358,12 @@ func (dq DisconnectQuery) Execute() {
 			minOffset = maxOffset
 		}
 
-		if prevOffset != 0 && maxOffset >= prevOffset+dq.DisconnectThresholdLength {
+		if prevOffset != 0 && maxOffset >= prevOffset+sq.DisconnectThresholdLength {
 			disconnects = append(disconnects, maxOffset)
 		}
 
-		for maxOffset-minOffset > dq.Length {
-			if len(disconnects) >= dq.NumDisconnects {
+		for maxOffset-minOffset > sq.Length {
+			if len(disconnects) >= sq.NumDisconnects {
 				foundSection = true
 				break
 			}
@@ -373,19 +384,19 @@ func (dq DisconnectQuery) Execute() {
 
 	if foundSection {
 		fmt.Printf("Range: (%d, %d), Disconnects:%d\n", minOffset, maxOffset, len(disconnects))
-		rangeQuery := RangeQuery{Input: dq.Input, Output: dq.Output, StartMilliOffset: minOffset, Length: maxOffset - minOffset}
+		rangeQuery := RangeQuery{Input: sq.Input, Output: sq.Output, StartMilliOffset: minOffset, Length: maxOffset - minOffset}
 		rangeQuery.Execute()
 	} else {
 		panic("unsatisfiable query")
 	}
 }
 
-func (dq DisconnectQuery) Outfile() string {
-	return dq.Output
+func (sq SpottyQuery) Outfile() string {
+	return sq.Output
 }
 
-func (dq DisconnectQuery) Outfiles() []string {
-	return []string{dq.Output}
+func (sq SpottyQuery) Outfiles() []string {
+	return []string{sq.Output}
 }
 
 func GetRemoteTracePath(batchName string, traceName string) string {

@@ -211,8 +211,10 @@ func main() {
 	os.RemoveAll("data")
 	os.Mkdir("data", os.ModePerm)
 	os.Chdir("data")
-	query := trace.ParseQuery(config.Query)
-	query.Execute()
+	for _, query := range config.Query {
+		query := trace.ParseQuery(query)
+		query.Execute()
+	}
 	os.Chdir("..")
 
 	linkFiles, err := ioutil.ReadDir(linkConfigDir)
@@ -247,9 +249,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	csvFile := fmt.Sprintf("%s/%s", curDir, "tmp/outputs/csv/all.csv")
+	csvDir := fmt.Sprintf("%s/tmp/outputs/csv", curDir)
 	os.Chdir(config.Evaluation.Dir)
 	for _, setup := range config.Evaluation.Setups {
+		csvFile := fmt.Sprintf("%s/%s", csvDir, setup.Input)
 		scriptFilename := strings.Split(setup.Script, ".R")[0]
 		outputFile := fmt.Sprintf("%s/%s/%s.%s", curDir, evalDir, scriptFilename, setup.OutputType)
 		scriptCmd := fmt.Sprintf("Rscript --vanilla %s %s %s", setup.Script, csvFile, outputFile)

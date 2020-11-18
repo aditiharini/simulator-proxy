@@ -44,9 +44,40 @@ func (t *simTime) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
-type Graph interface {
-	addDataset(data []interface{})
-	toCsv()
+type ThroughputData struct {
+	time  OffsetTime
+	count int
+}
+
+func (td ThroughputData) toStringList() []string {
+	time := fmt.Sprintf("%d", td.time.offset.Milliseconds())
+	throughput := fmt.Sprintf("%d", td.count)
+	return []string{time, throughput}
+}
+
+type ThroughputDataset struct {
+	data []ThroughputData
+}
+
+func (td *ThroughputDataset) getColumnNames() []string {
+	return []string{"time", "count"}
+}
+
+func (td *ThroughputDataset) toCsv(filename string) {
+	file, err := os.Create(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	w := csv.NewWriter(file)
+	defer w.Flush()
+
+	columns := td.getColumnNames()
+	w.Write(columns)
+	for _, throughputData := range td.data {
+		w.Write(throughputData.toStringList())
+	}
 }
 
 type LatencyData struct {
@@ -132,6 +163,37 @@ func (s Stats) getTimeAsOffsetFromGlobalStart(eventTime simTime) OffsetTime {
 func (s Stats) getTimeAsOffsetFromLinkStart(eventTime simTime, link Link) OffsetTime {
 	baseTime := s.perLinkStartTime[link]
 	return OffsetTime{offset: eventTime.Sub(baseTime.Time), base: baseTime}
+}
+
+func divisionFactor(unit string) int {
+	switch unit {
+	case "Mbps":
+		return 1000000
+	case "Kbps":
+		return 1000
+	case "b":
+		return 1
+	default:
+		panic("invalid throughput unit")
+	}
+}
+
+func (s Stats) calculateThroughput() []ThroughputData {
+	timeMap := make(map[simTime]int)
+	for _, entryTime := range s.entryTime {
+		if _, ok := timeMap[entryTime]; ok {
+			timeMap[entryTime]++
+		} else {
+			timeMap[entryTime] = 1
+		}
+	}
+
+	var throughputData []ThroughputData
+	for entryTime, count := range timeMap {
+		offsetTime := s.getTimeAsOffsetFromGlobalStart(entryTime)
+		throughputData = append(throughputData, ThroughputData{time: offsetTime, count: count})
+	}
+	return throughputData
 }
 
 func (s Stats) calculateLatencies() []LatencyData {
@@ -336,6 +398,10 @@ func main() {
 	combinedPath := fmt.Sprintf("%s/combined.csv", *outdir)
 	combinedDataset.toCsv(combinedPath)
 	allCsvs = append(allCsvs, combinedPath)
+
+	combinedThroughputPath := fmt.Sprintf("%s/combined_throughput.csv", *outdir)
+	combinedThroughput := ThroughputDataset{data: stats.calculateThroughput()}
+	combinedThroughput.toCsv(combinedThroughputPath)
 
 	for i, linkLog := range splitLinkLogs(*linkLogs) {
 		file, err := os.Open(linkLog)
