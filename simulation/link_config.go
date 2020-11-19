@@ -53,14 +53,16 @@ func (c DelayLinkConfig) DstAddr() Address {
 }
 
 type TraceLinkConfig struct {
-	filename string
-	src      Address
-	dst      Address
+	filename     string
+	lossfilename string
+	src          Address
+	dst          Address
 }
 
-func NewTraceLinkConfig(filename string, src Address, dst Address) TraceLinkConfig {
+func NewTraceLinkConfig(filename string, lossfilename string, src Address, dst Address) TraceLinkConfig {
 	return TraceLinkConfig{
 		filename,
+		lossfilename,
 		src,
 		dst,
 	}
@@ -68,7 +70,7 @@ func NewTraceLinkConfig(filename string, src Address, dst Address) TraceLinkConf
 
 func (c TraceLinkConfig) ToLinkEmulator(queueSize int) LinkEmulator {
 	// TODO(aditi): make NewTraceEmulator return a pointer too
-	newEmulator := NewTraceEmulator(c.filename, queueSize, c.src, c.dst)
+	newEmulator := NewTraceEmulator(c.filename, c.lossfilename, queueSize, c.src, c.dst)
 	return &newEmulator
 }
 

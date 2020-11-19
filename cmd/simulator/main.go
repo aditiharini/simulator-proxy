@@ -63,6 +63,7 @@ func toLinkConfigs(rawTopology config.TopologyJson, simulatedDstAddress Address)
 			} else if linkInfoMap["type"] == "trace" {
 				newLinkConfig = NewTraceLinkConfig(
 					linkInfoMap["file"].(string),
+					linkInfoMap["loss"].(string),
 					src,
 					dst,
 				)

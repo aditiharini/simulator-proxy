@@ -22,6 +22,7 @@ type TraceEmulator struct {
 	src                       Address
 	dst                       Address
 	incomingPacketCallback    func(Packet)
+	lossEmulator              *LossEmulator
 }
 
 func (t *TraceEmulator) SrcAddr() Address {
@@ -52,7 +53,7 @@ func loadTrace(filename string) []time.Duration {
 	return sendOffsets
 }
 
-func NewTraceEmulator(filename string, maxQueueSize int, src Address, dst Address) TraceEmulator {
+func NewTraceEmulator(filename string, lossTrace string, maxQueueSize int, src Address, dst Address) TraceEmulator {
 	now := time.Now()
 	log.WithFields(log.Fields{
 		"event": "start_trace",
@@ -71,6 +72,7 @@ func NewTraceEmulator(filename string, maxQueueSize int, src Address, dst Addres
 		bytesLeftInTransit:        0,
 		src:                       src,
 		dst:                       dst,
+		lossEmulator:              NewLossEmulator(now, lossTrace),
 	}
 }
 
@@ -151,10 +153,12 @@ func (t *TraceEmulator) ApplyEmulation() {
 
 	p := t.readIncomingPacket()
 	t.skipUnusedSlots(time.Now())
-	t.waitForNextDeliveryOpportunity()
-	t.useDeliverySlot()
-	t.sendFullPacket(p)
-	t.sendNewPacketsImmediatelyIfPossible()
+	if !t.lossEmulator.Drop(time.Now()) {
+		t.waitForNextDeliveryOpportunity()
+		t.useDeliverySlot()
+		t.sendFullPacket(p)
+		t.sendNewPacketsImmediatelyIfPossible()
+	}
 }
 
 func (t *TraceEmulator) SetOnIncomingPacket(callback func(Packet)) {
