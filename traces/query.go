@@ -2,98 +2,11 @@ package trace
 
 import (
 	"bufio"
-	"encoding/json"
+	"encoding/csv"
 	"fmt"
-	"io"
-	"os"
 	"os/exec"
 	"strconv"
-
-	config "github.com/aditiharini/simulator-proxy/config/experiment"
 )
-
-func ParseQuery(queryJson config.QueryJson) Query {
-	if queryJson["type"] == "segment" {
-		var segmentQuery SegmentQuery
-		input := queryJson["input"].(config.QueryJson)
-		segmentQuery.Input = ParseSingleOutputQuery(input)
-		segmentQuery.NumSegments = int(queryJson["segments"].(float64))
-		var outputs []string
-		for _, output := range queryJson["output"].([]interface{}) {
-			outputs = append(outputs, output.(string))
-		}
-		segmentQuery.Output = outputs
-		return segmentQuery
-	} else if queryJson["type"] == "range" {
-		return ParseSingleOutputQuery(queryJson)
-	} else if queryJson["type"] == "full_file" {
-		return ParseSingleOutputQuery(queryJson)
-	} else if queryJson["type"] == "stitch" {
-		return ParseSingleOutputQuery(queryJson)
-	} else if queryJson["type"] == "spotty" {
-		return ParseSingleOutputQuery(queryJson)
-	} else {
-		panic("invalid query")
-	}
-}
-
-func ParseSingleOutputQuery(queryJson config.QueryJson) SingleOutputQuery {
-	jsonBytes, err := json.Marshal(queryJson)
-	if err != nil {
-		panic(err)
-	}
-	if queryJson["type"] == "range" {
-		var rangeQuery RangeQuery
-		input := queryJson["input"].(config.QueryJson)
-		rangeQuery.Input = ParseSingleOutputQuery(input)
-		rangeQuery.Length = int(queryJson["length"].(float64))
-		rangeQuery.StartMilliOffset = int(queryJson["start"].(float64))
-		rangeQuery.Output = queryJson["output"].(string)
-		return rangeQuery
-	} else if queryJson["type"] == "full_file" {
-		var fullFileQuery FullFileQuery
-		if err := json.Unmarshal(jsonBytes, &fullFileQuery); err != nil {
-			panic(err)
-		}
-		return fullFileQuery
-	} else if queryJson["type"] == "stitch" {
-		var stitchQuery StitchQuery
-		var queryInputs []Query
-		inputs := queryJson["inputs"].([]config.QueryJson)
-		for _, input := range inputs {
-			queryInputs = append(queryInputs, ParseQuery(input))
-		}
-		stitchQuery.Inputs = queryInputs
-		stitchQuery.Output = queryJson["output"].(string)
-		return stitchQuery
-	} else if queryJson["type"] == "spotty" {
-		var spottyQuery SpottyQuery
-		input := queryJson["input"].(config.QueryJson)
-		spottyQuery.Input = ParseSingleOutputQuery(input)
-		spottyQuery.Output = queryJson["output"].(string)
-		spottyQuery.DisconnectThresholdLength = int(queryJson["disconnectThreshold"].(float64))
-		spottyQuery.Length = int(queryJson["length"].(float64))
-		spottyQuery.NumDisconnects = int(queryJson["disconnects"].(float64))
-		return spottyQuery
-	} else {
-		panic("invalid query")
-	}
-}
-
-func CreateScratchSpace() string {
-	scratchDir := "scratch"
-	if err := os.MkdirAll(scratchDir, os.ModePerm); err != nil {
-		panic(err)
-	}
-	return scratchDir
-}
-
-func RemoveScratchSpace() {
-	scratchDir := "scratch"
-	if err := os.RemoveAll(scratchDir); err != nil {
-		panic(err)
-	}
-}
 
 type Query interface {
 	Execute()
@@ -114,46 +27,30 @@ type RangeQuery struct {
 
 func (rq RangeQuery) Execute() {
 	rq.Input.Execute()
-	rawTrace, err := os.Open(rq.Input.Outfile())
-	if err != nil {
-		panic(err)
-	}
-	rawTraceScanner := bufio.NewScanner(rawTrace)
+	RunProcessing([]string{rq.Input.Outfile()}, []string{rq.Output}, func(traceReaders []*bufio.Scanner, lossReaders []*csv.Reader, traceWriters []*bufio.Writer, lossWriters []*csv.Writer) {
+		lastWrittenOffset := 0
 
-	scratchDir := CreateScratchSpace()
-	processedTraceTmp := fmt.Sprintf("%s/%s", scratchDir, rq.Output)
-	processedTraceFile, err := os.Create(processedTraceTmp)
-	if err != nil {
-		panic(err)
-	}
+		rawTraceScanner, rawLossTraceReader := traceReaders[0], lossReaders[0]
+		processedTraceWriter, processedLossWriter := traceWriters[0], lossWriters[0]
 
-	processedTraceWriter := bufio.NewWriter(processedTraceFile)
-	for rawTraceScanner.Scan() {
-		offset, err := strconv.Atoi(rawTraceScanner.Text())
-		if err != nil {
-			panic(err)
-		}
-		if offset >= rq.StartMilliOffset && offset < rq.StartMilliOffset+rq.Length {
-			newOffset := offset - rq.StartMilliOffset
-			processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
-		}
-	}
-	if err := rawTrace.Close(); err != nil {
-		panic(err)
-	}
-	if err := processedTraceWriter.Flush(); err != nil {
-		panic(err)
-	}
-	if err := processedTraceFile.Close(); err != nil {
-		panic(err)
-	}
-	if err := os.Remove(rq.Input.Outfile()); err != nil {
-		panic(err)
-	}
-	if err := os.Rename(processedTraceTmp, rq.Output); err != nil {
-		panic(err)
-	}
-	RemoveScratchSpace()
+		ForEachOffsetScanner(rawTraceScanner, func(offset int) {
+			if offset >= rq.StartMilliOffset && offset < rq.StartMilliOffset+rq.Length {
+				newOffset := offset - rq.StartMilliOffset
+				processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
+				lastWrittenOffset = newOffset
+			}
+		})
+
+		ForEachLossReader(rawLossTraceReader, func(offset int, probability string) {
+			if offset >= rq.StartMilliOffset && offset < rq.StartMilliOffset+rq.Length {
+				newOffset := offset - rq.StartMilliOffset
+				processedLossWriter.Write([]string{fmt.Sprintf("%d", newOffset), probability})
+			}
+		})
+
+		processedLossWriter.Write([]string{fmt.Sprintf("%d", lastWrittenOffset), fmt.Sprintf("%f", 0.)})
+
+	})
 }
 
 func (rq RangeQuery) Outfile() string {
@@ -172,69 +69,39 @@ type SegmentQuery struct {
 
 func (sq SegmentQuery) Execute() {
 	sq.Input.Execute()
-	rawTrace, err := os.Open(sq.Input.Outfile())
-	if err != nil {
-		panic(err)
-	}
-	defer rawTrace.Close()
-	rawTraceScanner := bufio.NewScanner(rawTrace)
-	lastTime := ""
-	for rawTraceScanner.Scan() {
-		lastTime = rawTraceScanner.Text()
-	}
-	duration, err := strconv.Atoi(lastTime)
-	if err != nil {
-		panic(err)
-	}
-	_, err = rawTrace.Seek(0, io.SeekStart)
-	if err != nil {
-		panic(err)
-	}
+
+	duration := 0
+	ForEachOffsetFile(fmt.Sprintf("%s.pps", sq.Input.Outfile()), func(offset int) {
+		duration = offset
+	})
 
 	durationPerSegment := duration / sq.NumSegments
-	rawTraceScanner = bufio.NewScanner(rawTrace)
-	scratchDir := CreateScratchSpace()
-	if err := os.Chdir(scratchDir); err != nil {
-		panic(err)
-	}
-	processedTraceFile, err := os.Create(sq.Output[0])
-	if err != nil {
-		panic(err)
-	}
-	processedTraceWriter := bufio.NewWriter(processedTraceFile)
-	nextSegmentNumber := 1
-	for rawTraceScanner.Scan() {
-		offset, err := strconv.Atoi(rawTraceScanner.Text())
-		if err != nil {
-			panic(err)
-		}
-		if nextSegmentNumber < sq.NumSegments && offset > nextSegmentNumber*durationPerSegment {
-			processedTraceWriter.Flush()
-			processedTraceFile.Close()
-			processedTraceFile, err = os.Create(sq.Output[nextSegmentNumber])
-			if err != nil {
-				panic(err)
+	RunProcessing([]string{sq.Input.Outfile()}, sq.Output, func(traceReaders []*bufio.Scanner, lossReaders []*csv.Reader, traceWriters []*bufio.Writer, lossWriters []*csv.Writer) {
+		rawTraceScanner, lossTraceReader := traceReaders[0], lossReaders[0]
+		processedTraceWriter := traceWriters[0]
+		nextSegmentNumber := 1
+		segmentStarts := []int{0}
+		ForEachOffsetScanner(rawTraceScanner, func(offset int) {
+			if nextSegmentNumber < sq.NumSegments && offset > nextSegmentNumber*durationPerSegment {
+				processedTraceWriter = traceWriters[nextSegmentNumber]
+				nextSegmentNumber++
+				segmentStarts = append(segmentStarts, offset)
 			}
-			processedTraceWriter = bufio.NewWriter(processedTraceFile)
-			nextSegmentNumber++
-		}
-		newOffset := offset - ((nextSegmentNumber - 1) * durationPerSegment)
-		processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
-	}
-	processedTraceWriter.Flush()
-	processedTraceFile.Close()
-	if err := os.Chdir(".."); err != nil {
-		panic(err)
-	}
-	if err := os.Remove(sq.Input.Outfile()); err != nil {
-		panic(err)
-	}
-	for _, output := range sq.Output {
-		if err := os.Rename(fmt.Sprintf("%s/%s", scratchDir, output), output); err != nil {
-			panic(err)
-		}
-	}
-	RemoveScratchSpace()
+			newOffset := offset - ((nextSegmentNumber - 1) * durationPerSegment)
+			processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
+		})
+
+		lossWriter := lossWriters[0]
+		ForEachLossReader(lossTraceReader, func(offset int, probability string) {
+			if nextSegmentNumber < len(segmentStarts) && offset >= segmentStarts[nextSegmentNumber] {
+				lossWriter = lossWriters[nextSegmentNumber]
+				nextSegmentNumber++
+			}
+			newOffset := offset - ((nextSegmentNumber - 1) * durationPerSegment)
+			lossWriter.Write([]string{fmt.Sprintf("%d", newOffset), probability})
+
+		})
+	})
 }
 
 func (sq SegmentQuery) Outfiles() []string {
@@ -244,7 +111,7 @@ func (sq SegmentQuery) Outfiles() []string {
 type FullFileQuery struct {
 	Batchname string `json:"batch"`
 	Tracename string `json:"trace"`
-	Output    string `json:"output`
+	Output    string `json:"output"`
 }
 
 func (fq FullFileQuery) Execute() {
@@ -273,45 +140,32 @@ func (sq StitchQuery) Execute() {
 		allInputs = append(allInputs, input.Outfiles()...)
 	}
 
-	scratchDir := CreateScratchSpace()
-	processedTraceFile, err := os.Create(fmt.Sprintf("%s/%s", scratchDir, sq.Output))
-	if err != nil {
-		panic(err)
-	}
-	defer processedTraceFile.Close()
-	processedTraceWriter := bufio.NewWriter(processedTraceFile)
-	defer processedTraceWriter.Flush()
+	RunProcessing(allInputs, []string{sq.Output}, func(traceReaders []*bufio.Scanner, lossReaders []*csv.Reader, traceWriters []*bufio.Writer, lossWriters []*csv.Writer) {
+		lastOffset := 0
+		processedTraceWriter := traceWriters[0]
+		for _, traceReader := range traceReaders {
+			curOffset := 0
+			ForEachOffsetScanner(traceReader, func(offset int) {
+				newOffset := lastOffset + offset
+				curOffset = newOffset
+				processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
+			})
+			lastOffset = curOffset
+		}
 
-	lastOffset := 0
-	for _, input := range allInputs {
-		rawTraceFile, err := os.Open(input)
-		if err != nil {
-			panic(err)
+		lastOffset = 0
+		processedLossWriter := lossWriters[0]
+		for _, lossReader := range lossReaders {
+			curOffset := 0
+			ForEachLossReader(lossReader, func(offset int, probability string) {
+				newOffset := lastOffset + offset
+				curOffset = newOffset
+				processedLossWriter.Write([]string{fmt.Sprintf("%d", newOffset), probability})
+			})
+			lastOffset = curOffset
 		}
-		defer rawTraceFile.Close()
-		rawTraceScanner := bufio.NewScanner(rawTraceFile)
-		curOffset := 0
-		for rawTraceScanner.Scan() {
-			offset, err := strconv.Atoi(rawTraceScanner.Text())
-			if err != nil {
-				panic(err)
-			}
-			newOffset := lastOffset + offset
-			curOffset = newOffset
-			processedTraceWriter.WriteString(fmt.Sprintf("%d\n", newOffset))
-		}
-		lastOffset = curOffset
-	}
+	})
 
-	for _, input := range allInputs {
-		if err := os.Remove(input); err != nil {
-			panic(err)
-		}
-	}
-	if err := os.Rename(fmt.Sprintf("%s/%s", scratchDir, sq.Output), sq.Output); err != nil {
-		panic(err)
-	}
-	RemoveScratchSpace()
 }
 
 func (sq StitchQuery) Outfile() string {
@@ -332,63 +186,50 @@ type SpottyQuery struct {
 
 func (sq SpottyQuery) Execute() {
 	sq.Input.Execute()
-	infile := sq.Input.Outfile()
-	rawTraceFileMin, err := os.Open(infile)
-	if err != nil {
-		panic(err)
-	}
-	defer rawTraceFileMin.Close()
-	rawTraceFileMax, err := os.Open(infile)
-	if err != nil {
-		panic(err)
-	}
-	defer rawTraceFileMax.Close()
-	rawTraceReaderMin := bufio.NewScanner(rawTraceFileMin)
-	rawTraceReaderMax := bufio.NewScanner(rawTraceFileMax)
-	minOffset, maxOffset := -1, -1
-	var disconnects []int
-	prevOffset := 0
-	foundSection := false
-	for rawTraceReaderMax.Scan() {
-		maxOffset, err = strconv.Atoi(rawTraceReaderMax.Text())
-		if err != nil {
-			panic(err)
-		}
-		if minOffset == -1 {
-			minOffset = maxOffset
-		}
 
-		if prevOffset != 0 && maxOffset >= prevOffset+sq.DisconnectThresholdLength {
-			disconnects = append(disconnects, maxOffset)
-		}
+	RunProcessing([]string{sq.Input.Outfile(), sq.Input.Outfile()}, []string{sq.Output}, func(traceReaders []*bufio.Scanner, lossReaders []*csv.Reader, traceWriters []*bufio.Writer, lossWriters []*csv.Writer) {
+		rawTraceReaderMin, rawTraceReaderMax := traceReaders[0], traceReaders[1]
+		minOffset, maxOffset := -1, -1
+		var disconnects []int
+		prevOffset := 0
+		foundSection := false
+		ForEachOffsetScanner(rawTraceReaderMax, func(maxOffset int) {
+			if !foundSection {
+				if minOffset == -1 {
+					minOffset = maxOffset
+				}
 
-		for maxOffset-minOffset > sq.Length {
-			if len(disconnects) >= sq.NumDisconnects {
-				foundSection = true
-				break
-			}
-			if !rawTraceReaderMin.Scan() {
-				panic(fmt.Sprintf("min ahead of max (min: %d, max:%d)", minOffset, maxOffset))
-			}
-			minOffset, err = strconv.Atoi(rawTraceReaderMin.Text())
-			if len(disconnects) > 0 && minOffset > disconnects[0] {
-				disconnects = disconnects[1:]
-			}
-		}
+				if prevOffset != 0 && maxOffset >= prevOffset+sq.DisconnectThresholdLength {
+					disconnects = append(disconnects, maxOffset)
+				}
 
+				for maxOffset-minOffset > sq.Length {
+					if len(disconnects) >= sq.NumDisconnects {
+						foundSection = true
+						break
+					}
+					if !rawTraceReaderMin.Scan() {
+						panic(fmt.Sprintf("min ahead of max (min: %d, max:%d)", minOffset, maxOffset))
+					}
+					minOffset, err := strconv.Atoi(rawTraceReaderMin.Text())
+					if err != nil {
+						panic(err)
+					}
+					if len(disconnects) > 0 && minOffset > disconnects[0] {
+						disconnects = disconnects[1:]
+					}
+				}
+				prevOffset = maxOffset
+			}
+		})
 		if foundSection {
-			break
+			fmt.Printf("Range: (%d, %d), Disconnects:%d\n", minOffset, maxOffset, len(disconnects))
+			rangeQuery := RangeQuery{Input: sq.Input, Output: sq.Output, StartMilliOffset: minOffset, Length: maxOffset - minOffset}
+			rangeQuery.Execute()
+		} else {
+			panic("unsatisfiable query")
 		}
-		prevOffset = maxOffset
-	}
-
-	if foundSection {
-		fmt.Printf("Range: (%d, %d), Disconnects:%d\n", minOffset, maxOffset, len(disconnects))
-		rangeQuery := RangeQuery{Input: sq.Input, Output: sq.Output, StartMilliOffset: minOffset, Length: maxOffset - minOffset}
-		rangeQuery.Execute()
-	} else {
-		panic("unsatisfiable query")
-	}
+	})
 }
 
 func (sq SpottyQuery) Outfile() string {
@@ -397,8 +238,4 @@ func (sq SpottyQuery) Outfile() string {
 
 func (sq SpottyQuery) Outfiles() []string {
 	return []string{sq.Output}
-}
-
-func GetRemoteTracePath(batchName string, traceName string) string {
-	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/processed/traces/%s", batchName, traceName)
 }
