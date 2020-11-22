@@ -27,6 +27,10 @@ type RangeQuery struct {
 
 func (rq RangeQuery) Execute() {
 	rq.Input.Execute()
+	rq.ExecuteWithInputFile()
+}
+
+func (rq RangeQuery) ExecuteWithInputFile() {
 	RunProcessing([]string{rq.Input.Outfile()}, []string{rq.Output}, func(traceReaders []*bufio.Scanner, lossReaders []*csv.Reader, traceWriters []*bufio.Writer, lossWriters []*csv.Writer) {
 		lastWrittenOffset := 0
 
@@ -49,7 +53,6 @@ func (rq RangeQuery) Execute() {
 		})
 
 		processedLossWriter.Write([]string{fmt.Sprintf("%d", lastWrittenOffset), fmt.Sprintf("%f", 0.)})
-
 	})
 }
 
@@ -92,8 +95,12 @@ func (sq SegmentQuery) Execute() {
 		})
 
 		lossWriter := lossWriters[0]
+		nextSegmentNumber = 1
 		ForEachLossReader(lossTraceReader, func(offset int, probability string) {
 			if nextSegmentNumber < len(segmentStarts) && offset >= segmentStarts[nextSegmentNumber] {
+				newOffset := offset - ((nextSegmentNumber - 1) * durationPerSegment)
+				lossWriter.Write([]string{fmt.Sprintf("%d", newOffset), fmt.Sprintf("%f", 0.)})
+
 				lossWriter = lossWriters[nextSegmentNumber]
 				nextSegmentNumber++
 			}
@@ -115,7 +122,12 @@ type FullFileQuery struct {
 }
 
 func (fq FullFileQuery) Execute() {
-	if err := exec.Command("dropbox_uploader.sh", "download", GetRemoteTracePath(fq.Batchname, fq.Tracename), fq.Output).Run(); err != nil {
+	if out, err := exec.Command("dropbox_uploader.sh", "download", fmt.Sprintf("%s.pps", GetRemoteTracePath(fq.Batchname, fq.Tracename)), fmt.Sprintf("%s.pps", fq.Output)).CombinedOutput(); err != nil {
+		print(string(out))
+		panic(err)
+	}
+	if out, err := exec.Command("dropbox_uploader.sh", "download", fmt.Sprintf("%s.loss", GetRemoteTracePath(fq.Batchname, fq.Tracename)), fmt.Sprintf("%s.loss", fq.Output)).CombinedOutput(); err != nil {
+		print(string(out))
 		panic(err)
 	}
 }
@@ -189,33 +201,36 @@ func (sq SpottyQuery) Execute() {
 
 	RunProcessing([]string{sq.Input.Outfile(), sq.Input.Outfile()}, []string{sq.Output}, func(traceReaders []*bufio.Scanner, lossReaders []*csv.Reader, traceWriters []*bufio.Writer, lossWriters []*csv.Writer) {
 		rawTraceReaderMin, rawTraceReaderMax := traceReaders[0], traceReaders[1]
-		minOffset, maxOffset := -1, -1
+		minOffsetOverall, maxOffsetOverall := -1, -1
 		var disconnects []int
 		prevOffset := 0
 		foundSection := false
 		ForEachOffsetScanner(rawTraceReaderMax, func(maxOffset int) {
 			if !foundSection {
-				if minOffset == -1 {
-					minOffset = maxOffset
+				maxOffsetOverall = maxOffset
+				if minOffsetOverall == -1 {
+					minOffsetOverall = maxOffset
 				}
 
 				if prevOffset != 0 && maxOffset >= prevOffset+sq.DisconnectThresholdLength {
 					disconnects = append(disconnects, maxOffset)
 				}
 
-				for maxOffset-minOffset > sq.Length {
+				for maxOffset-minOffsetOverall > sq.Length {
 					if len(disconnects) >= sq.NumDisconnects {
 						foundSection = true
 						break
 					}
 					if !rawTraceReaderMin.Scan() {
-						panic(fmt.Sprintf("min ahead of max (min: %d, max:%d)", minOffset, maxOffset))
+						panic(fmt.Sprintf("min ahead of max (min: %d, max:%d), error: %v", minOffsetOverall, maxOffset, rawTraceReaderMin.Err()))
 					}
-					minOffset, err := strconv.Atoi(rawTraceReaderMin.Text())
+					minOffsetInt, err := strconv.Atoi(rawTraceReaderMin.Text())
+					minOffsetOverall = minOffsetInt
+
 					if err != nil {
 						panic(err)
 					}
-					if len(disconnects) > 0 && minOffset > disconnects[0] {
+					if len(disconnects) > 0 && minOffsetOverall > disconnects[0] {
 						disconnects = disconnects[1:]
 					}
 				}
@@ -223,9 +238,13 @@ func (sq SpottyQuery) Execute() {
 			}
 		})
 		if foundSection {
-			fmt.Printf("Range: (%d, %d), Disconnects:%d\n", minOffset, maxOffset, len(disconnects))
-			rangeQuery := RangeQuery{Input: sq.Input, Output: sq.Output, StartMilliOffset: minOffset, Length: maxOffset - minOffset}
-			rangeQuery.Execute()
+			fmt.Printf("Range: (%d, %d), Disconnects:%d\n", minOffsetOverall, maxOffsetOverall, len(disconnects))
+
+			CopyFile(fmt.Sprintf("%s.pps", sq.Input.Outfile()), fmt.Sprintf("../%s.pps", sq.Input.Outfile()))
+			CopyFile(fmt.Sprintf("%s.loss", sq.Input.Outfile()), fmt.Sprintf("../%s.loss", sq.Input.Outfile()))
+
+			rangeQuery := RangeQuery{Input: sq.Input, Output: sq.Output, StartMilliOffset: minOffsetOverall, Length: maxOffsetOverall - minOffsetOverall}
+			rangeQuery.ExecuteWithInputFile()
 		} else {
 			panic("unsatisfiable query")
 		}

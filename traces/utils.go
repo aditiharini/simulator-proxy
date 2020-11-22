@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/csv"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 )
@@ -24,6 +25,8 @@ func RemoveScratchSpace() {
 }
 
 func RemoveInputs(input string) {
+	wd, _ := os.Getwd()
+	fmt.Println("Remove ", wd, input)
 	if err := os.Remove(fmt.Sprintf("%s.pps", input)); err != nil {
 		panic(err)
 	}
@@ -82,7 +85,9 @@ func RunProcessing(inputs []string, outputs []string, doProcessing func([]*bufio
 		traceWriters = append(traceWriters, traceWriter)
 
 		processedLossFile, err := os.Create(fmt.Sprintf("%s.loss", output))
-		lossWriters = append(lossWriters, csv.NewWriter(processedLossFile))
+		lossWriter := csv.NewWriter(processedLossFile)
+		defer lossWriter.Flush()
+		lossWriters = append(lossWriters, lossWriter)
 	}
 
 	doProcessing(rawTraceScanners, rawLossTraceReaders, traceWriters, lossWriters)
@@ -91,16 +96,27 @@ func RunProcessing(inputs []string, outputs []string, doProcessing func([]*bufio
 		panic(err)
 	}
 
+	removedInputs := make(map[string]bool)
 	for _, input := range inputs {
-		RemoveInputs(input)
+		if _, ok := removedInputs[input]; !ok {
+			RemoveInputs(input)
+			removedInputs[input] = true
+		}
 	}
+
+	renamedOutputs := make(map[string]bool)
 	for _, output := range outputs {
-		RenameOutputs(output, scratchDir)
+		if _, ok := renamedOutputs[output]; !ok {
+			RenameOutputs(output, scratchDir)
+			renamedOutputs[output] = true
+		}
 	}
+
+	RemoveScratchSpace()
 }
 
 func GetRemoteTracePath(batchName string, traceName string) string {
-	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/processed/traces/%s", batchName, traceName)
+	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/%s", batchName, traceName)
 }
 
 func ForEachOffsetFile(tracefileName string, operator func(offset int)) {
@@ -128,7 +144,9 @@ func ForEachOffsetScanner(scanner *bufio.Scanner, operator func(offset int)) {
 func ForEachLossReader(reader *csv.Reader, operator func(offset int, probability string)) {
 	for {
 		line, err := reader.Read()
-		if err != nil {
+		if err == io.EOF {
+			break
+		} else if err != nil {
 			panic(err)
 		}
 
@@ -139,4 +157,17 @@ func ForEachLossReader(reader *csv.Reader, operator func(offset int, probability
 
 		operator(offset, line[1])
 	}
+}
+
+func CopyFile(dst string, src string) {
+	fmt.Println("Copy ", dst, src)
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		panic(err)
+	}
+	srcFile, err := os.Open(src)
+	if err != nil {
+		panic(err)
+	}
+	io.Copy(dstFile, srcFile)
 }
