@@ -43,7 +43,10 @@ func (e *DelayEmulator) readIncomingPacket() Packet {
 }
 
 func (e *DelayEmulator) WriteIncomingPacket(p Packet) {
-	e.inputQueue <- p
+	select {
+	case e.inputQueue <- p:
+	default:
+	}
 }
 
 func (e *DelayEmulator) ReadOutgoingPacket() Packet {
