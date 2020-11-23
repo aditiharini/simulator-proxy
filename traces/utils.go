@@ -116,7 +116,7 @@ func RunProcessing(inputs []string, outputs []string, doProcessing func([]*bufio
 }
 
 func GetRemoteTracePath(batchName string, traceName string) string {
-	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/%s", batchName, traceName)
+	return fmt.Sprintf("Drone-Project/measurements/iperf_traces/%s/traces/%s", batchName, traceName)
 }
 
 func ForEachOffsetFile(tracefileName string, operator func(offset int)) {

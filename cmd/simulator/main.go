@@ -137,7 +137,6 @@ func Start(config config.Config, ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Context closed")
 			dev.Close()
 			return
 		default:

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	receiverConfig "github.com/aditiharini/simulator-proxy/config/packet-receiver"
 	senderConfig "github.com/aditiharini/simulator-proxy/config/packet-sender"
 	simulatorConfig "github.com/aditiharini/simulator-proxy/config/simulator"
@@ -14,6 +16,7 @@ type DroneLinkConfig struct {
 }
 
 type SimulatorConfig struct {
+	Timeout    int                           `json:"timeout"`
 	DroneLinks DroneLinkConfig               `json:"droneLinks"`
 	BaseLinks  FullyConnectedJson            `json:"baseLinks"`
 	Global     simulatorConfig.GeneralConfig `json:"global"`
@@ -56,8 +59,9 @@ func NewDelayEntry(delayMillis int) DelayEntry {
 type TraceEntry struct {
 	EntryType string `json:"type"`
 	TraceFile string `json:"file"`
+	LossFile  string `json:"loss"`
 }
 
 func NewTraceEntry(tracefile string) TraceEntry {
-	return TraceEntry{EntryType: "trace", TraceFile: tracefile}
+	return TraceEntry{EntryType: "trace", TraceFile: fmt.Sprintf("%s.pps", tracefile), LossFile: fmt.Sprintf("%s.loss", tracefile)}
 }

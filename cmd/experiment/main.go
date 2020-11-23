@@ -148,7 +148,7 @@ func runSimulator(config config.Config, inputFile string, outputFile string) {
 
 	inpath := fmt.Sprintf("%s/%s", "../experiment", inputFile)
 	outpath := fmt.Sprintf("%s/%s", "../experiment", outputFile)
-	simCmd := fmt.Sprintf("sudo ../simulator/simulator -config=%s -time=%d> %s", inpath, 20, outpath)
+	simCmd := fmt.Sprintf("sudo ../simulator/simulator -config=%s -time=%d> %s", inpath, config.Simulator.Timeout, outpath)
 	run(simCmd, "SIM", true, true)
 	time.Sleep(time.Second * time.Duration(1))
 
@@ -170,12 +170,12 @@ func runSimulator(config config.Config, inputFile string, outputFile string) {
 	}
 
 	// Give ample time for the transmission to finish
-	time.Sleep(time.Second * time.Duration(10))
+	time.Sleep(time.Second * time.Duration(config.Simulator.Timeout))
 
 	// Something goes wrong with killing simulator. I think it's because of sudo.
 	// This is a hack around that
-	if err := exec.Command("sudo", "killall", "simulator").Run(); err != nil {
-		panic(err)
+	if out, err := exec.Command("sudo", "killall", "simulator").CombinedOutput(); err != nil {
+		fmt.Println("killing simulator returned error: ", string(out))
 	}
 	syscall.Kill(-receiver.Process.Pid, syscall.SIGTERM)
 	time.Sleep(time.Second * time.Duration(1))
