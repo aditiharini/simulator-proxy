@@ -33,9 +33,10 @@ type Config struct {
 }
 
 type EvaluationSetup struct {
-	Input      string `json:"input"`
-	Script     string `json:"script"`
-	OutputType string `json:"outputType"`
+	Input   string   `json:"input"`
+	Args    string   `json:"args"`
+	Script  string   `json:"script"`
+	Outputs []string `json:"outputs"`
 }
 
 type Evaluation struct {

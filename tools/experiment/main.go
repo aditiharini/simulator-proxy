@@ -14,7 +14,7 @@ import (
 
 	config "github.com/aditiharini/simulator-proxy/config/experiment"
 	simulatorConfig "github.com/aditiharini/simulator-proxy/config/simulator"
-	trace "github.com/aditiharini/simulator-proxy/traces"
+	querying "github.com/aditiharini/simulator-proxy/querying"
 )
 
 // Only have drone to base station
@@ -212,7 +212,7 @@ func main() {
 	os.Mkdir("data", os.ModePerm)
 	os.Chdir("data")
 	for _, query := range config.Query {
-		query := trace.ParseQuery(query)
+		query := querying.ParseQuery(query)
 		query.Execute()
 	}
 	os.Chdir("..")
@@ -253,9 +253,13 @@ func main() {
 	os.Chdir(config.Evaluation.Dir)
 	for _, setup := range config.Evaluation.Setups {
 		csvFile := fmt.Sprintf("%s/%s", csvDir, setup.Input)
-		scriptFilename := strings.Split(setup.Script, ".R")[0]
-		outputFile := fmt.Sprintf("%s/%s/%s.%s", curDir, evalDir, scriptFilename, setup.OutputType)
-		scriptCmd := fmt.Sprintf("Rscript --vanilla %s %s %s", setup.Script, csvFile, outputFile)
+		outputArgs := ""
+		for _, outputFile := range setup.Outputs {
+			outputPath := fmt.Sprintf("%s/%s/%s", curDir, evalDir, outputFile)
+			outputArgs += " " + outputPath
+
+		}
+		scriptCmd := fmt.Sprintf("Rscript --vanilla %s %s %s %s", setup.Script, csvFile, setup.Args, outputArgs)
 		if out, err := exec.Command("bash", "-c", scriptCmd).CombinedOutput(); err != nil {
 			fmt.Println(string(out))
 			panic(err)
@@ -267,7 +271,11 @@ func main() {
 	}
 
 	if *experimentName != "" {
-		uploadCmd := fmt.Sprintf("~/dropbox_uploader.sh upload tmp Drone-Project/broadcast/%s", *experimentName)
+		deleteCmd := fmt.Sprintf("dropbox_uploader.sh delete Drone-Project/results/thesis/simulator/%s", *experimentName)
+		if out, err := exec.Command("bash", "-c", deleteCmd).CombinedOutput(); err != nil {
+			fmt.Println(string(out))
+		}
+		uploadCmd := fmt.Sprintf("dropbox_uploader.sh upload tmp Drone-Project/results/thesis/simulator/%s", *experimentName)
 		if out, err := exec.Command("bash", "-c", uploadCmd).CombinedOutput(); err != nil {
 			fmt.Println(string(out))
 			panic(err)

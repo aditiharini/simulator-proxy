@@ -1,4 +1,4 @@
-package trace
+package querying
 
 import (
 	"encoding/json"

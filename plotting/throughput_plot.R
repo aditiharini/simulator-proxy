@@ -7,7 +7,7 @@ library(dplyr)
 args = commandArgs(trailingOnly=TRUE)
 
 data = read.csv(args[1])
-png(args[2], width=960, height=480)
+pdf(args[2], width=960, height=480)
 plot <- ggplot() +
   geom_point(data=data, aes(x=time, y=count), shape='.') +
   xlab("time (ms)") + 
